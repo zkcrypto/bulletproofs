@@ -38,7 +38,7 @@ bincode = "1"
 rand_chacha = "0.2"
 
 [features]
-default = ["std", "avx2_backend"]
+default = ["std"]
 common = [
 	"curve25519-dalek", 
 	"curve25519-dalek/nightly", 
@@ -49,7 +49,8 @@ u64_backend = ["curve25519-dalek/u64_backend", ]
 avx2_backend = ["curve25519-dalek/avx2_backend"]
 u32_backend = ["curve25519-dalek/u32_backend"] 
 # yoloproofs = []
-std = ["rand", "rand/std", "thiserror", "common", "avx2_backend"]
+
+std = ["rand", "rand/std", "thiserror", "common", "u64_backend"]
 no_std = ["common", "u32_backend"]
 
 [[test]]

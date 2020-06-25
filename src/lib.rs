@@ -9,7 +9,7 @@
 
 extern crate alloc;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "std")]
 #[macro_use]
 extern crate serde_derive;
 

@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+#[cfg(feature = "clear_on_drop")]
 use clear_on_drop::clear::Clear;
 use core::mem;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};

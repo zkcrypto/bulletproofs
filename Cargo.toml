@@ -38,7 +38,8 @@ bincode = "1"
 rand_chacha = "0.2"
 
 [features]
-default = ["std"]
+default = ["std", "avx2_backend"]
+
 u64_backend = ["curve25519-dalek/u64_backend", ]
 avx2_backend = ["curve25519-dalek/avx2_backend"]
 u32_backend = ["curve25519-dalek/u32_backend"] 
@@ -50,7 +51,6 @@ std = [
 	"curve25519-dalek/serde",
 	"rand/std", 
 	"thiserror", 
-	"u64_backend",
 ]
 
 [[test]]

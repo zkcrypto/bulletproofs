@@ -2,6 +2,10 @@
 
 Entries are listed in reverse chronological order.
 
+## 2.0.1
+
+* Replace `clear_on_drop` by `zeroize`.
+
 ## 2.0.0
 
 * Switch from `failure` to `std`-compatible errors via `thiserror`.

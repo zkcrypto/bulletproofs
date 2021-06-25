@@ -639,7 +639,7 @@ mod tests {
 
         // Both prover and verifier have access to the generators and the proof
         let max_bitsize = 64;
-        let max_parties = 8;
+        let max_parties = 1024;
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(max_bitsize, max_parties);
 
@@ -668,6 +668,11 @@ mod tests {
             // 2. Return serialized proof and value commitments
             (bincode::serialize(&proof).unwrap(), value_commitments)
         };
+
+        println!("proof: {:?}\n", proof_bytes);
+        println!("proof size: {} bytes\n", proof_bytes.len());
+        // 32 bytes per CompressedRistretto point, m points (committed values)
+        println!("comm size: {} bytes\n", value_commitments.len()*32);
 
         // Verifier's scope
         {
@@ -721,6 +726,11 @@ mod tests {
     #[test]
     fn create_and_verify_n_64_m_8() {
         singleparty_create_and_verify_helper(64, 8);
+    }
+
+    #[test]
+    fn create_and_verify_n_32_m_1024() {
+        singleparty_create_and_verify_helper(32, 1024);
     }
 
     #[test]

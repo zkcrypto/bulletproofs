@@ -13,7 +13,7 @@ use merlin::Transcript;
 use bulletproofs::RangeProof;
 use bulletproofs::{BulletproofGens, PedersenGens};
 
-static AGGREGATION_SIZES: [usize; 6] = [1, 2, 4, 8, 16, 32];
+static AGGREGATION_SIZES: [usize; 5] = [1024, 2048, 4096, 8192, 16384];
 
 fn create_aggregated_rangeproof_helper(n: usize, c: &mut Criterion) {
     let label = format!("Aggregated {}-bit rangeproof creation", n);
@@ -45,6 +45,10 @@ fn create_aggregated_rangeproof_helper(n: usize, c: &mut Criterion) {
         },
         &AGGREGATION_SIZES,
     );
+}
+
+fn create_aggregated_rangeproof_n_1(c: &mut Criterion) {
+    create_aggregated_rangeproof_helper(1, c);
 }
 
 fn create_aggregated_rangeproof_n_8(c: &mut Criterion) {
@@ -99,6 +103,10 @@ fn verify_aggregated_rangeproof_helper(n: usize, c: &mut Criterion) {
     );
 }
 
+fn verify_aggregated_rangeproof_n_1(c: &mut Criterion) {
+    verify_aggregated_rangeproof_helper(1, c);
+}
+
 fn verify_aggregated_rangeproof_n_8(c: &mut Criterion) {
     verify_aggregated_rangeproof_helper(8, c);
 }
@@ -119,20 +127,22 @@ criterion_group! {
     name = create_rp;
     config = Criterion::default().sample_size(10);
     targets =
-    create_aggregated_rangeproof_n_8,
-    create_aggregated_rangeproof_n_16,
-    create_aggregated_rangeproof_n_32,
-    create_aggregated_rangeproof_n_64,
+    create_aggregated_rangeproof_n_1,
+    // create_aggregated_rangeproof_n_8,
+    // create_aggregated_rangeproof_n_16,
+    // create_aggregated_rangeproof_n_32,
+    // create_aggregated_rangeproof_n_64,
 }
 
 criterion_group! {
     name = verify_rp;
     config = Criterion::default();
     targets =
-    verify_aggregated_rangeproof_n_8,
-    verify_aggregated_rangeproof_n_16,
-    verify_aggregated_rangeproof_n_32,
-    verify_aggregated_rangeproof_n_64,
+    verify_aggregated_rangeproof_n_1,
+    // verify_aggregated_rangeproof_n_8,
+    // verify_aggregated_rangeproof_n_16,
+    // verify_aggregated_rangeproof_n_32,
+    // verify_aggregated_rangeproof_n_64,
 }
 
 criterion_main!(create_rp, verify_rp);

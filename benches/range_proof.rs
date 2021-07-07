@@ -13,7 +13,7 @@ use merlin::Transcript;
 use bulletproofs::RangeProof;
 use bulletproofs::{BulletproofGens, PedersenGens};
 
-static AGGREGATION_SIZES: [usize; 5] = [1024, 2048, 4096, 8192, 16384];
+static AGGREGATION_SIZES: [usize; 8] = [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072];
 
 fn create_aggregated_rangeproof_helper(n: usize, c: &mut Criterion) {
     let label = format!("Aggregated {}-bit rangeproof creation", n);

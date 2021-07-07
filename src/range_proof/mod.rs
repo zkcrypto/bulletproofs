@@ -355,9 +355,9 @@ impl RangeProof {
 
         // First, replay the "interactive" protocol using the proof
         // data to recompute all challenges.
-        if !(n == 8 || n == 16 || n == 32 || n == 64) {
-            return Err(ProofError::InvalidBitsize);
-        }
+        // if !(n == 8 || n == 16 || n == 32 || n == 64) {
+        //     return Err(ProofError::InvalidBitsize);
+        // }
         if bp_gens.gens_capacity < n {
             return Err(ProofError::InvalidGeneratorsLength);
         }
@@ -686,6 +686,11 @@ mod tests {
                 .verify_multiple(&bp_gens, &pc_gens, &mut transcript, &value_commitments, n)
                 .is_ok());
         }
+    }
+
+    #[test]
+    fn create_and_verify_n_1_m_1024() {
+        singleparty_create_and_verify_helper(1, 1024);
     }
 
     #[test]

@@ -52,6 +52,10 @@ name = "range_proof"
 name = "r1cs"
 required-features = ["yoloproofs"]
 
+[[test]]
+name = "k-hot"
+required-features = ["yoloproofs"]
+
 [[bench]]
 name = "range_proof"
 harness = false
@@ -65,3 +69,8 @@ harness = false
 name = "r1cs"
 harness = false
 required-features = ["yoloproofs", "avx2_backend"]
+
+[[bench]]
+name = "k-hot"
+harness = false
+required-features = ["yoloproofs"]

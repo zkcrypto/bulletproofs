@@ -53,7 +53,11 @@ name = "r1cs"
 required-features = ["yoloproofs"]
 
 [[test]]
-name = "k-hot"
+name = "k_hot"
+required-features = ["yoloproofs"]
+
+[[test]]
+name = "one_hot"
 required-features = ["yoloproofs"]
 
 [[bench]]
@@ -71,6 +75,11 @@ harness = false
 required-features = ["yoloproofs", "avx2_backend"]
 
 [[bench]]
-name = "k-hot"
+name = "k_hot"
+harness = false
+required-features = ["yoloproofs"]
+
+[[bench]]
+name = "one_hot"
 harness = false
 required-features = ["yoloproofs"]

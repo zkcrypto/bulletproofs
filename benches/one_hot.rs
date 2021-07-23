@@ -4,7 +4,7 @@
 extern crate criterion;
 use criterion::Criterion;
 
-// Code below copied from ../tests/k_hot.rs
+// Code below copied from ../tests/one_hot.rs
 //
 // Ideally we wouldn't duplicate it, but AFAIK criterion requires a
 // seperate benchmark harness, while the test code uses a different
@@ -24,54 +24,59 @@ use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
 use merlin::Transcript;
 
-// k-hot gadget
+// One-hot gadget
 
-/// A proof-of-k-hotness, which means:
+/// A proof-of-one-hotness, which means:
 /// - all items in vector x are either 0 or 1
-/// - the sum of all items in vector x is k
-struct KHotProof(R1CSProof);
+/// - the sum of all items in vector x is 1
+///
+/// The equation that is checked:
+/// <x, r>^2 == <x, r.r>
+/// Where:
+/// - x is the one-hot vector
+/// - r is a vector that is randomly generated after x is committed
+/// - r.r is a vector with each entry the square of the corresponding value in r.
+/// This should be cheap, since addition and multiplication by known scalars are efficient.
+/// This trick is discussed and proven here: https://eprint.iacr.org/2018/707.pdf (p. 29)
+///
+/// Circuit sketch: 
+/// xr_left: a LinearConstraint representing <x, r>
+/// xr_right: another LinearConstraint representing <x, r>
+/// xr_sq_all: the multiplication gate output, from multiplying xr-left and xr-right.
+///            represents <x, r>^2.
+/// xr_sq_r: the LinearConstraint representing <x, r.r>
+/// Final equality constraint: xr_sq_all == xr_sq_r
 
-impl KHotProof {
-    fn gadget<CS: ConstraintSystem>(
+struct OneHotProof(R1CSProof);
+
+impl OneHotProof {
+    fn gadget<CS: RandomizableConstraintSystem>(
         cs: &mut CS,
         x: Vec<Variable>,
-        x_assignment: Option<Vec<u64>>,
-        k: u64,
     ) -> Result<(), R1CSError> {
         let n = x.len();
 
-        // Allocate a variable to represent k, for the k-sum.
-        let hotness = cs.allocate(Scalar::from(k).into())?;
-        // Turn it variable a linear constraint to check that it is equal the vector sum.
-        let mut hot_constr: LinearCombination = hotness.into();
+        let mut xr_left: LinearCombination = Scalar::zero().into();
+        let mut xr_right: LinearCombination = Scalar::zero().into();
+        let mut xr_sq_r: LinearCombination = Scalar::zero().into();
 
-        for i in 0..n {
-            // Create low-level variables and add them to constraints
-            let (a, b, o) = cs.allocate_multiplier(x_assignment.as_ref().map(|x_open| {
-                let bit: u64 = x_open[i];
-                ((1-bit).into(), bit.into())
-            }))?;
+        cs.specify_randomized_constraints(move |cs| {
+            for i in 0..n {
+                let r_i = cs.challenge_scalar(b"one-hot challenge");
+                xr_left = xr_left + x[i] * r_i;
+                xr_right = xr_right + x[i] * r_i;
+                xr_sq_r = xr_sq_r + x[i] * r_i * r_i;
+            };
 
-            // Enforce a * b = 0, so one of (a,b) is zero
-            cs.constrain(o.into());
+            let (_, _, xr_sq_all) = cs.multiply(xr_left, xr_right);
+            cs.constrain(xr_sq_all - xr_sq_r);
 
-            // Enforce that a = 1 - b, so they both are 1 or 0.
-            cs.constrain(a + (b - 1u64));
-
-            // Add `-b_i` to the linear combination
-            // in order to form the following constraint by the end of the loop:
-            // hotness = k - Sum(b_i, i = 0..n-1)
-            hot_constr = hot_constr - b;
-        }
-
-        // Enforce that hot_constr = 0, so that k = Sum(b_i, i = 0..n-1)
-        cs.constrain(hot_constr);
-
-        Ok(())
+            Ok(())
+        })
     }
 }
 
-impl KHotProof {
+impl OneHotProof {
     /// Attempt to construct a proof that `input` is a k-hot vector
     ///
     /// Returns a tuple `(proof, input_commitments)`.
@@ -80,10 +85,9 @@ impl KHotProof {
         bp_gens: &'b BulletproofGens,
         transcript: &'a mut Transcript,
         input: Vec<u64>,
-        k: u64,
     ) -> Result<
         (
-            KHotProof,
+            OneHotProof,
             Vec<CompressedRistretto>,
         ),
         R1CSError,
@@ -91,9 +95,8 @@ impl KHotProof {
         // Apply a domain separator with the k-hot parameters to the transcript
         // XXX should this be part of the gadget?
         let l = input.len();
-        transcript.append_message(b"dom-sep", b"kHotProof");
+        transcript.append_message(b"dom-sep", b"OneHotProof");
         transcript.append_u64(b"len", l as u64);
-        transcript.append_u64(b"k", k as u64);
 
         let mut prover = Prover::new(&pc_gens, transcript);
 
@@ -104,18 +107,18 @@ impl KHotProof {
         let (input_commitments, input_vars): (Vec<_>, Vec<_>) = input
             .clone()
             .into_iter()
-            .map(|v| prover.commit(Scalar::from(v), Scalar::random(&mut blinding_rng)))
+            .map(|x_i| prover.commit(Scalar::from(x_i), Scalar::random(&mut blinding_rng)))
             .unzip();
 
-        KHotProof::gadget(&mut prover, input_vars, Some(input), k)?;
+        OneHotProof::gadget(&mut prover, input_vars)?;
 
         let proof = prover.prove(&bp_gens)?;
 
-        Ok((KHotProof(proof), input_commitments))
+        Ok((OneHotProof(proof), input_commitments))
     }
 }
 
-impl KHotProof {
+impl OneHotProof {
     /// Attempt to verify a `ShuffleProof`.
     pub fn verify<'a, 'b>(
         &self,
@@ -123,23 +126,21 @@ impl KHotProof {
         bp_gens: &'b BulletproofGens,
         transcript: &'a mut Transcript,
         input_commitments: &Vec<CompressedRistretto>,
-        k: u64,
     ) -> Result<(), R1CSError> {
         // Apply a domain separator with the k-hot parameters to the transcript
         // XXX should this be part of the gadget?
         let l = input_commitments.len();
-        transcript.append_message(b"dom-sep", b"kHotProof");
+        transcript.append_message(b"dom-sep", b"OneHotProof");
         transcript.append_u64(b"len", l as u64);
-        transcript.append_u64(b"k", k as u64);
 
         let mut verifier = Verifier::new(transcript);
 
         let input_vars: Vec<_> = input_commitments
             .iter()
-            .map(|V| verifier.commit(*V))
+            .map(|X_i| verifier.commit(*X_i))
             .collect();
 
-        KHotProof::gadget(&mut verifier, input_vars, None, k)?;
+        OneHotProof::gadget(&mut verifier, input_vars)?;
 
         verifier.verify(&self.0, &pc_gens, &bp_gens)?;
         Ok(())
@@ -148,35 +149,31 @@ impl KHotProof {
 // End of copied code.
 
 /// Binary logarithm of maximum k-hot vector length.
-const LG_MAX_SHUFFLE_SIZE: usize = 14;
-/// Maximum k-hot vector length to benchmark.
+const LG_MAX_SHUFFLE_SIZE: usize = 20;
+/// Maximum one-hot vector length to benchmark.
 const MAX_SHUFFLE_SIZE: usize = 1 << LG_MAX_SHUFFLE_SIZE;
 /// Different k-hot vector lengths to try
-static TEST_SIZES: [usize; 6] = [1, 2, 32, 64, 1024, 16384];
+static TEST_SIZES: [usize; 2] = [524288, 1048576];
 
-fn bench_khot_prove(c: &mut Criterion) {
+fn bench_one_hot_prove(c: &mut Criterion) {
     // Construct Bulletproof generators externally
     let pc_gens = PedersenGens::default();
     let bp_gens = BulletproofGens::new(2 * MAX_SHUFFLE_SIZE, 1);
 
     c.bench_function_over_inputs(
-        "k-hot proof creation",
+        "one-hot proof creation",
         move |b, l| {
-            // Currently just proving k=1, aka one-hot vector.
-            let k = 1;
             // Generate input to prove k-hot
             let mut input: Vec<u64> = vec![0; *l];
             use crate::rand::Rng;
             let mut rng = rand::thread_rng();
-            for _ in 0..k {
-                let hot_index = rng.gen_range(0..*l);
-                input[hot_index] = 1;
-            }
+            let hot_index = rng.gen_range(0..*l);
+            input[hot_index] = 1;
 
-            // Make k-hot proof
+            // Make one-hot proof
             b.iter(|| {
-                let mut prover_transcript = Transcript::new(b"KHotBenchmark");
-                KHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input.clone(), k)
+                let mut prover_transcript = Transcript::new(b"OneHotBenchmark");
+                OneHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input.clone())
                     .unwrap();
             })
         },
@@ -185,52 +182,47 @@ fn bench_khot_prove(c: &mut Criterion) {
 }
 
 criterion_group! {
-    name = khot_prove;
+    name = one_hot_prove;
     // Lower the sample size to run faster; larger shuffle sizes are
     // long so we're not microbenchmarking anyways.
     config = Criterion::default().sample_size(10);
     targets =
-    bench_khot_prove,
+    bench_one_hot_prove,
 }
 
-fn bench_khot_verify(c: &mut Criterion) {
+fn bench_one_hot_verify(c: &mut Criterion) {
     // Construct Bulletproof generators externally
     let pc_gens = PedersenGens::default();
     let bp_gens = BulletproofGens::new(2 * MAX_SHUFFLE_SIZE, 1);
 
     c.bench_function_over_inputs(
-        "k-hot proof verification",
+        "one-hot proof verification",
         move |b, l| {
             // Generate the proof in its own scope to prevent reuse of
             // prover variables by the verifier
             let (proof, input_commitments) = {
-                // Currently just proving k=1, aka one-hot vector.
-                let k = 1;
                 // Generate input to prove k-hot
                 let mut input: Vec<u64> = vec![0; *l];
                 use crate::rand::Rng;
                 let mut rng = rand::thread_rng();
-                for _ in 0..k {
-                    let hot_index = rng.gen_range(0..*l);
-                    input[hot_index] = 1;
-                }
+                let hot_index = rng.gen_range(0..*l);
+                input[hot_index] = 1;
 
                 // Make k-hot proof
-                let mut prover_transcript = Transcript::new(b"KHotBenchmark");
-                KHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input, k)
+                let mut prover_transcript = Transcript::new(b"OneHotBenchmark");
+                OneHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input)
                     .unwrap()
             };
 
             // Verify kshuffle proof
             b.iter(|| {
-                let mut verifier_transcript = Transcript::new(b"KHotBenchmark");
+                let mut verifier_transcript = Transcript::new(b"OneHotBenchmark");
                 proof
                     .verify(
                         &pc_gens,
                         &bp_gens,
                         &mut verifier_transcript,
                         &input_commitments,
-                        1
                     )
                     .unwrap();
             })
@@ -240,12 +232,12 @@ fn bench_khot_verify(c: &mut Criterion) {
 }
 
 criterion_group! {
-    name = khot_verify;
+    name = one_hot_verify;
     // Lower the sample size to run faster; larger shuffle sizes are
     // long so we're not microbenchmarking anyways.
     config = Criterion::default().sample_size(10);
     targets =
-    bench_khot_verify,
+    bench_one_hot_verify,
 }
 
-criterion_main!(khot_prove, khot_verify);
+criterion_main!(one_hot_prove, one_hot_verify);

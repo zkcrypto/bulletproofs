@@ -10,6 +10,9 @@ pub trait TranscriptProtocol {
     /// Append a domain separator for an `n`-bit, `m`-party range proof.
     fn rangeproof_domain_sep(&mut self, n: u64, m: u64);
 
+    /// Append a domain separator for an `n`-length k-hot proof.
+    fn k_hot_proof_domain_sep(&mut self, n: u64);
+
     /// Append a domain separator for a length-`n` inner product proof.
     fn innerproduct_domain_sep(&mut self, n: u64);
 
@@ -45,6 +48,11 @@ impl TranscriptProtocol for Transcript {
         self.append_message(b"dom-sep", b"rangeproof v1");
         self.append_u64(b"n", n);
         self.append_u64(b"m", m);
+    }
+
+    fn k_hot_proof_domain_sep(&mut self, n: u64) {
+        self.append_message(b"dom-sep", b"k-hot proof v1");
+        self.append_u64(b"n", n);
     }
 
     fn innerproduct_domain_sep(&mut self, n: u64) {

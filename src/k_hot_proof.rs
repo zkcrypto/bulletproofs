@@ -128,6 +128,11 @@ impl KHotProof {
 
         let t_poly = l_poly.inner_product(&r_poly);
 
+        // CHECK IF t_0 actually equals delta(y, z) + k * z * z:
+        // println!("{:?}", t_poly.0);
+        // let t_0_check = Scalar::from(k_hot) * zz + delta(n, &y, &z);
+        // println!("{:?}", t_0_check);
+
         // Generate x by committing to T_1, T_2 (line 49-54)
         let t_1_blinding = Scalar::random(rng);
         let t_2_blinding = Scalar::random(rng);
@@ -231,17 +236,18 @@ impl KHotProof {
 
         // Construct concat_z_and_2, an iterator of the values of
         // z^0 * \vec(2)^n || z^1 * \vec(2)^n || ... || z^(m-1) * \vec(2)^n
-        let powers_of_2: Vec<Scalar> = util::exp_iter(Scalar::from(2u64)).take(n).collect();
-        let concat_z_and_2: Vec<Scalar> = util::exp_iter(z)
-            .take(m)
-            .flat_map(|exp_z| powers_of_2.iter().map(move |exp_2| exp_2 * exp_z))
-            .collect();
+        let powers_of_2: Vec<Scalar> = util::exp_iter(Scalar::from(1u64)).take(n).collect();
+        // let concat_z_and_2: Vec<Scalar> = util::exp_iter(z)
+        //     .take(m)
+        //     .flat_map(|exp_z| powers_of_2.iter().map(move |exp_2| exp_2 * exp_z))
+        //     .collect();
 
         let g = s.iter().map(|s_i| minus_z - a * s_i);
         let h = s_inv
             .zip(util::exp_iter(y.invert()))
-            .zip(concat_z_and_2.iter())
-            .map(|((s_i_inv, exp_y_inv), z_and_2)| z + exp_y_inv * (zz * z_and_2 - b * s_i_inv));
+            // .zip(concat_z_and_2.iter())
+            .map(|(s_i_inv, z_and_2)| z + (zz * z_and_2 - b * s_i_inv));
+            // .map(|((s_i_inv, exp_y_inv), z_and_2)| z + exp_y_inv * (zz * z_and_2 - b * s_i_inv));
 
         let basepoint_scalar = w * (self.t_x - a * b) + c * (delta(n, &y, &z) + k * zz - self.t_x);
 
@@ -392,7 +398,7 @@ fn delta(n: usize, y: &Scalar, z: &Scalar) -> Scalar {
     let z3 = z2 * z;
     let sum_y = util::sum_of_powers(y, n);
 
-    (z - z2) * sum_y - z * z * z * Scalar::from(n as u64)
+    (z - z2) * sum_y - z3 * Scalar::from(n as u64)
 }
 
 #[cfg(test)]
@@ -467,16 +473,17 @@ mod tests {
     }
 
     #[test]
-    fn test_n_16() {
+    fn test_n_1() {
+        // k = 0
+        create_and_verify_helper(1, 0);
         // k = 1
-        create_and_verify_helper(16, 1);
-        // // k = 2
-        // create_and_verify_helper(16, 2);
-        // // k = 4
-        // create_and_verify_helper(16, 4);
-        // // k = 8
-        // create_and_verify_helper(16, 8);
-        // // k = 16
-        // create_and_verify_helper(16, 16);
+        create_and_verify_helper(1, 1);
+    }
+    #[test]
+    fn test_n_2() {
+        // k = 1
+        create_and_verify_helper(2, 1);
+        // k = 2
+        // create_and_verify_helper(2, 2);
     }
 }

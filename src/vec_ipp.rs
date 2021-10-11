@@ -25,15 +25,12 @@ use crate::util;
 use serde::de::Visitor;
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 
-/// The `KHotProof` struct represents a proof that a vector is 
-/// exactly k hot (is composed of 0 and 1s, and sums to k).
-///
-/// The `KHotProof` struct contains functions for creating and
-/// verifying aggregated k-hot proofs.  The single-value case is
-/// implemented as a special case of aggregated k-hot proofs.
+/// The `VecInnerProductProof` struct represents a proof that the inner
+/// product between a secret vector and a public vector is a certain commitment.
+/// The secret vector is committed to via a Vector Pedersen Commitment.
 
 #[derive(Clone, Debug)]
-pub struct KHotProof {
+pub struct VecInnerProductProof {
     /// Commitment to the bits of the vector
     A: CompressedRistretto,
     /// Commitment to the blinding factors
@@ -52,17 +49,18 @@ pub struct KHotProof {
     ipp_proof: InnerProductProof,
 }
 
-impl KHotProof {
-    /// Create a KHotProof for a given vector.
+impl VecInnerProductProof {
+    /// Create a VecInnerProductProof for a given vector.
     pub fn prove(
         bp_gens: &BulletproofGens,
         pc_gens: &PedersenGens,
         transcript: &mut Transcript,
-        k_hot_vec: Vec<u8>,
-        k_hot: u8,
-    ) -> Result<KHotProof, ProofError> {
-        let n = k_hot_vec.len();
-        let k = Scalar::from(k_hot);
+        secret_vec: Vec<u8>,
+        v: u64,
+        v_blinding: Scalar
+        // public_vec: Vec<u8>,
+    ) -> Result<(VecInnerProductProof, CompressedRistretto), ProofError> {
+        let n = secret_vec.len();
         if bp_gens.gens_capacity < n {
             return Err(ProofError::InvalidGeneratorsLength);
         }
@@ -80,7 +78,7 @@ impl KHotProof {
         for (G_i, H_i) in bp_gens.G(n, 1).zip(bp_gens.H(n, 1)) {
             // If v_i = 0, we add a_L[i] * G[i] + a_R[i] * H[i] = - H[i]
             // If v_i = 1, we add a_L[i] * G[i] + a_R[i] * H[i] =   G[i]
-            let v_i = Choice::from(k_hot_vec[i]);
+            let v_i = Choice::from(secret_vec[i]);
             let mut point = -H_i;
             point.conditional_assign(G_i, v_i);
             A += point;
@@ -114,12 +112,12 @@ impl KHotProof {
         let mut exp_y = Scalar::one();
         let mut exp_2 = Scalar::one(); // start at 2^0 = 1
         for i in 0..n {
-            let a_L_i = Scalar::from(k_hot_vec[i]);
+            let a_L_i = Scalar::from(secret_vec[i]);
             let a_R_i = a_L_i - Scalar::one();
 
             l_poly.0[i] = a_L_i - z;
             l_poly.1[i] = s_L[i];
-            r_poly.0[i] = exp_y * (a_R_i + z) + zz;
+            r_poly.0[i] = exp_y * (a_R_i + z) + zz * exp_2;
             r_poly.1[i] = exp_y * s_R[i];
 
             exp_y *= y; // y^i -> y^(i+1)
@@ -127,11 +125,6 @@ impl KHotProof {
         }
 
         let t_poly = l_poly.inner_product(&r_poly);
-
-        // CHECK IF t_0 actually equals delta(y, z) + k * z * z:
-        // println!("{:?}", t_poly.0);
-        // let t_0_check = Scalar::from(k_hot) * zz + delta(n, &y, &z);
-        // println!("{:?}", t_0_check);
 
         // Generate x by committing to T_1, T_2 (line 49-54)
         let t_1_blinding = Scalar::random(rng);
@@ -175,7 +168,9 @@ impl KHotProof {
             r_vec,
         );
 
-        Ok(KHotProof {
+        let V = pc_gens.commit(v.into(), v_blinding).compress();
+
+        Ok((VecInnerProductProof {
             A: A.compress(),
             S: S.compress(),
             T_1: T_1.compress(),
@@ -184,22 +179,21 @@ impl KHotProof {
             t_x_blinding,
             e_blinding,
             ipp_proof,
-        })
+        }, V))
     }
 
-    /// Verify a KHotProof
+    /// Verify a VecInnerProductProof
     pub fn verify(
         &self,
         bp_gens: &BulletproofGens,
         pc_gens: &PedersenGens,
         transcript: &mut Transcript,
         n: usize,
-        k_hot: u8,
+        V: CompressedRistretto,
     ) -> Result<(), ProofError> {
         if bp_gens.gens_capacity < n {
             return Err(ProofError::InvalidGeneratorsLength);
         }
-        let k = Scalar::from(k_hot);
         let rng = &mut thread_rng();
 
         transcript.k_hot_proof_domain_sep(n as u64);
@@ -231,25 +225,25 @@ impl KHotProof {
 
         let a = self.ipp_proof.a;
         let b = self.ipp_proof.b;
-
         let m = 1;
+        let value_commitments = [V];
 
-        // Construct concat_z_and_2, an iterator of the values of
+          // Construct concat_z_and_2, an iterator of the values of
         // z^0 * \vec(2)^n || z^1 * \vec(2)^n || ... || z^(m-1) * \vec(2)^n
-        let powers_of_2: Vec<Scalar> = util::exp_iter(Scalar::from(1u64)).take(n).collect();
-        // let concat_z_and_2: Vec<Scalar> = util::exp_iter(z)
-        //     .take(m)
-        //     .flat_map(|exp_z| powers_of_2.iter().map(move |exp_2| exp_2 * exp_z))
-        //     .collect();
+        let powers_of_2: Vec<Scalar> = util::exp_iter(Scalar::from(2u64)).take(n).collect();
+        let concat_z_and_2: Vec<Scalar> = util::exp_iter(z)
+            .take(m)
+            .flat_map(|exp_z| powers_of_2.iter().map(move |exp_2| exp_2 * exp_z))
+            .collect();
 
         let g = s.iter().map(|s_i| minus_z - a * s_i);
         let h = s_inv
             .zip(util::exp_iter(y.invert()))
-            // .zip(concat_z_and_2.iter())
-            .map(|(s_i_inv, z_and_2)| z + (zz * z_and_2 - b * s_i_inv));
-            // .map(|((s_i_inv, exp_y_inv), z_and_2)| z + exp_y_inv * (zz * z_and_2 - b * s_i_inv));
+            .zip(concat_z_and_2.iter())
+            .map(|((s_i_inv, exp_y_inv), z_and_2)| z + exp_y_inv * (zz * z_and_2 - b * s_i_inv));
 
-        let basepoint_scalar = w * (self.t_x - a * b) + c * (delta(n, &y, &z) + k * zz - self.t_x);
+        let value_commitment_scalars = util::exp_iter(z).take(m).map(|z_exp| c * zz * z_exp);
+        let basepoint_scalar = w * (self.t_x - a * b) + c * (delta(n, &y, &z) - self.t_x);
 
         let mega_check = RistrettoPoint::optional_multiscalar_mul(
             iter::once(Scalar::one())
@@ -261,7 +255,8 @@ impl KHotProof {
                 .chain(iter::once(-self.e_blinding - c * self.t_x_blinding))
                 .chain(iter::once(basepoint_scalar))
                 .chain(g)
-                .chain(h),
+                .chain(h)
+                .chain(value_commitment_scalars),
             iter::once(self.A.decompress())
                 .chain(iter::once(self.S.decompress()))
                 .chain(iter::once(self.T_1.decompress()))
@@ -272,6 +267,7 @@ impl KHotProof {
                 .chain(iter::once(Some(pc_gens.B)))
                 .chain(bp_gens.G(n, m).map(|&x| Some(x)))
                 .chain(bp_gens.H(n, m).map(|&x| Some(x)))
+                .chain(value_commitments.iter().map(|V| V.decompress())),
         )
         .ok_or_else(|| ProofError::VerificationError)?;
 
@@ -309,8 +305,8 @@ impl KHotProof {
 
     /// Deserializes the proof from a byte slice.
     ///
-    /// Returns an error if the byte slice cannot be parsed into a `KHotProof`.
-    pub fn from_bytes(slice: &[u8]) -> Result<KHotProof, ProofError> {
+    /// Returns an error if the byte slice cannot be parsed into a `VecInnerProductProof`.
+    pub fn from_bytes(slice: &[u8]) -> Result<VecInnerProductProof, ProofError> {
         if slice.len() % 32 != 0 {
             return Err(ProofError::FormatError);
         }
@@ -334,7 +330,7 @@ impl KHotProof {
 
         let ipp_proof = InnerProductProof::from_bytes(&slice[7 * 32..])?;
 
-        Ok(KHotProof {
+        Ok(VecInnerProductProof {
             A,
             S,
             T_1,
@@ -347,7 +343,7 @@ impl KHotProof {
     }
 }
 
-impl Serialize for KHotProof {
+impl Serialize for VecInnerProductProof {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -356,36 +352,36 @@ impl Serialize for KHotProof {
     }
 }
 
-impl<'de> Deserialize<'de> for KHotProof {
+impl<'de> Deserialize<'de> for VecInnerProductProof {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct KHotProofVisitor;
+        struct VecInnerProductProofVisitor;
 
-        impl<'de> Visitor<'de> for KHotProofVisitor {
-            type Value = KHotProof;
+        impl<'de> Visitor<'de> for VecInnerProductProofVisitor {
+            type Value = VecInnerProductProof;
 
             fn expecting(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                formatter.write_str("a valid KHotProof")
+                formatter.write_str("a valid VecInnerProductProof")
             }
 
-            fn visit_bytes<E>(self, v: &[u8]) -> Result<KHotProof, E>
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<VecInnerProductProof, E>
             where
                 E: serde::de::Error,
             {
                 // Using Error::custom requires T: Display, which our error
                 // type only implements when it implements std::error::Error.
                 #[cfg(feature = "std")]
-                return KHotProof::from_bytes(v).map_err(serde::de::Error::custom);
+                return VecInnerProductProof::from_bytes(v).map_err(serde::de::Error::custom);
                 // In no-std contexts, drop the error message.
                 #[cfg(not(feature = "std"))]
-                return KHotProof::from_bytes(v)
+                return VecInnerProductProof::from_bytes(v)
                     .map_err(|_| serde::de::Error::custom("deserialization error"));
             }
         }
 
-        deserializer.deserialize_bytes(KHotProofVisitor)
+        deserializer.deserialize_bytes(VecInnerProductProofVisitor)
     }
 }
 
@@ -429,44 +425,43 @@ mod tests {
         assert_eq!(power_g, delta(n, &y, &z));
     }
 
-    fn create_and_verify_helper(n: usize, k: u8) {
+    fn create_and_verify_helper(n: usize) {
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(n, 1);
 
         // Prover's scope
-        let proof_bytes = {
+        let (proof_bytes, V) = {
             // 0. Create witness data
-            let mut k_hot_vec = vec![0; n];
-            // TODO: make this a uniform distribution instead
-            for i in 0..k as usize {
-                k_hot_vec[i] = 1;
-            }
+            let mut secret_vec = vec![0; n];
+            // TODO: choose index randomly
+            secret_vec[0] = 1;
             
             // 1. Create the proof
-            let mut transcript = Transcript::new(b"KHotProofTest");
-            let proof = KHotProof::prove(
+            let mut transcript = Transcript::new(b"VecInnerProductProofTest");
+            let (proof, V) = VecInnerProductProof::prove(
                 &bp_gens,
                 &pc_gens,
                 &mut transcript,
-                k_hot_vec,
-                k,
+                secret_vec,
+                10, 
+                Scalar::one(),
             )
             .unwrap();
 
             // 2. Return serialized proof and value commitments
-            bincode::serialize(&proof).unwrap()
+            (bincode::serialize(&proof).unwrap(), V)
         };
 
         // Verifier's scope
         {
             // 3. Deserialize
-            let proof: KHotProof = bincode::deserialize(&proof_bytes).unwrap();
+            let proof: VecInnerProductProof = bincode::deserialize(&proof_bytes).unwrap();
 
             // 4. Verify with the same customization label as above
-            let mut transcript = Transcript::new(b"KHotProofTest");
+            let mut transcript = Transcript::new(b"VecInnerProductProofTest");
 
             assert!(proof
-                .verify(&bp_gens, &pc_gens, &mut transcript, n, k)
+                .verify(&bp_gens, &pc_gens, &mut transcript, n, V)
                 .is_ok());
         }
 
@@ -474,16 +469,10 @@ mod tests {
 
     #[test]
     fn test_n_1() {
-        // k = 0
-        create_and_verify_helper(1, 0);
-        // k = 1
-        create_and_verify_helper(1, 1);
+        create_and_verify_helper(1);
     }
     #[test]
     fn test_n_2() {
-        // k = 1
-        create_and_verify_helper(2, 1);
-        // k = 2
-        // create_and_verify_helper(2, 2);
+        create_and_verify_helper(2);
     }
 }

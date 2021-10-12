@@ -52,20 +52,22 @@ pub struct VecInnerProductProof {
 impl VecInnerProductProof {
     /// Create a VecInnerProductProof for a given vector.
     pub fn prove(
-        bp_gens: &BulletproofGens,
+        bp_generators: &BulletproofGens,
         pc_gens: &PedersenGens,
         transcript: &mut Transcript,
-        secret_vec: Vec<u8>,
         v: u64,
-        v_blinding: Scalar
+        v_blinding: Scalar,
+        n: usize,
         // public_vec: Vec<u8>,
     ) -> Result<(VecInnerProductProof, CompressedRistretto), ProofError> {
-        let n = secret_vec.len();
-        if bp_gens.gens_capacity < n {
+        if bp_generators.gens_capacity < n {
             return Err(ProofError::InvalidGeneratorsLength);
         }
+        let bp_gens = bp_generators.share(0);
 
         transcript.k_hot_proof_domain_sep(n as u64);
+
+        let V = pc_gens.commit(v.into(), v_blinding).compress();
 
         let rng = &mut thread_rng();
         let a_blinding = Scalar::random(rng);
@@ -75,10 +77,12 @@ impl VecInnerProductProof {
 
         use subtle::{Choice, ConditionallySelectable};
         let mut i = 0;
-        for (G_i, H_i) in bp_gens.G(n, 1).zip(bp_gens.H(n, 1)) {
+        for (G_i, H_i) in bp_gens.G(n).zip(bp_gens.H(n)) {
             // If v_i = 0, we add a_L[i] * G[i] + a_R[i] * H[i] = - H[i]
             // If v_i = 1, we add a_L[i] * G[i] + a_R[i] * H[i] =   G[i]
-            let v_i = Choice::from(secret_vec[i]);
+            // when we want to use the secret vec instead:
+            // let v_i = Choice::from(secret_vec[i]);
+            let v_i = Choice::from(((v >> i) & 1) as u8);
             let mut point = -H_i;
             point.conditional_assign(G_i, v_i);
             A += point;
@@ -93,8 +97,8 @@ impl VecInnerProductProof {
         let S = RistrettoPoint::multiscalar_mul(
             iter::once(&s_blinding).chain(s_L.iter()).chain(s_R.iter()),
             iter::once(&pc_gens.B_blinding)
-                .chain(bp_gens.G(n, 1))
-                .chain(bp_gens.H(n, 1)),
+                .chain(bp_gens.G(n))
+                .chain(bp_gens.H(n)),
         );
 
         // Commit aggregated A, S
@@ -108,16 +112,24 @@ impl VecInnerProductProof {
         let mut l_poly = util::VecPoly1::zero(n);
         let mut r_poly = util::VecPoly1::zero(n);
 
+        // This shouldn't do anything - offsets are one.
+        let j = 0;
+        let offset_y = util::scalar_exp_vartime(&y, (j * n) as u64);
+        let offset_z = util::scalar_exp_vartime(&z, j as u64);
+        let offset_zz = z * z * offset_z;
+
         let zz = z * z;
-        let mut exp_y = Scalar::one();
+        let mut exp_y = offset_y;
         let mut exp_2 = Scalar::one(); // start at 2^0 = 1
         for i in 0..n {
-            let a_L_i = Scalar::from(secret_vec[i]);
+            let a_L_i = Scalar::from((v >> i) & 1);
+            // restore this when we pull val from secret_vec
+            // let a_L_i = Scalar::from(secret_vec[i]);
             let a_R_i = a_L_i - Scalar::one();
 
             l_poly.0[i] = a_L_i - z;
             l_poly.1[i] = s_L[i];
-            r_poly.0[i] = exp_y * (a_R_i + z) + zz * exp_2;
+            r_poly.0[i] = exp_y * (a_R_i + z) + offset_zz * exp_2;
             r_poly.1[i] = exp_y * s_R[i];
 
             exp_y *= y; // y^i -> y^(i+1)
@@ -137,7 +149,7 @@ impl VecInnerProductProof {
         let x = transcript.challenge_scalar(b"x");
 
         let t_blinding_poly = util::Poly2(
-            Scalar::zero(),
+            offset_zz * v_blinding,
             t_1_blinding,
             t_2_blinding,
         );
@@ -148,9 +160,14 @@ impl VecInnerProductProof {
         let l_vec = l_poly.eval(x);
         let r_vec = r_poly.eval(x);
 
+        transcript.append_scalar(b"t_x", &t_x);
+        transcript.append_scalar(b"t_x_blinding", &t_x_blinding);
+        transcript.append_scalar(b"e_blinding", &e_blinding);
+
         // Get a challenge value to combine statements for the IPP
         let w = transcript.challenge_scalar(b"w");
         let Q = w * pc_gens.B;
+        println!("prover w: {:?}", w);
 
         let G_factors: Vec<Scalar> = iter::repeat(Scalar::one()).take(n).collect();
         let H_factors: Vec<Scalar> = util::exp_iter(y.invert())
@@ -162,13 +179,11 @@ impl VecInnerProductProof {
             &Q,
             &G_factors,
             &H_factors,
-            bp_gens.G(n, 1).cloned().collect(),
-            bp_gens.H(n, 1).cloned().collect(),
+            bp_gens.G(n).cloned().collect(),
+            bp_gens.H(n).cloned().collect(),
             l_vec,
             r_vec,
         );
-
-        let V = pc_gens.commit(v.into(), v_blinding).compress();
 
         Ok((VecInnerProductProof {
             A: A.compress(),
@@ -216,6 +231,7 @@ impl VecInnerProductProof {
         transcript.append_scalar(b"e_blinding", &self.e_blinding);
 
         let w = transcript.challenge_scalar(b"w");
+        println!("verifier w: {:?}", w);
 
         // Challenge value for batching statements to be verified
         let c = Scalar::random(rng);
@@ -274,6 +290,7 @@ impl VecInnerProductProof {
         if mega_check.is_identity() {
             Ok(())
         } else {
+            println!("mega check is not identity");
             Err(ProofError::VerificationError)
         }
     }
@@ -390,17 +407,23 @@ impl<'de> Deserialize<'de> for VecInnerProductProof {
 /// \delta(y,z) = (z - z^{2}) \langle \mathbf{1}, {\mathbf{y}}^{n} \rangle - z^3 \cdot n
 /// \\]
 fn delta(n: usize, y: &Scalar, z: &Scalar) -> Scalar {
-    let z2 = z * z;
-    let z3 = z2 * z;
-    let sum_y = util::sum_of_powers(y, n);
+    // let z2 = z * z;
+    // let z3 = z2 * z;
+    // let sum_y = util::sum_of_powers(y, n);
 
-    (z - z2) * sum_y - z3 * Scalar::from(n as u64)
+    // (z - z2) * sum_y - z3 * Scalar::from(n as u64)
+    let m = 1;
+    let sum_y = util::sum_of_powers(y, n * m);
+    let sum_2 = util::sum_of_powers(&Scalar::from(2u64), n);
+    let sum_z = util::sum_of_powers(z, m);
+
+    (z - z * z) * sum_y - z * z * z * sum_2 * sum_z
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
+/*
     #[test]
     fn test_delta() {
         let mut rng = rand::thread_rng();
@@ -424,7 +447,7 @@ mod tests {
 
         assert_eq!(power_g, delta(n, &y, &z));
     }
-
+*/
     fn create_and_verify_helper(n: usize) {
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(n, 1);
@@ -432,9 +455,9 @@ mod tests {
         // Prover's scope
         let (proof_bytes, V) = {
             // 0. Create witness data
-            let mut secret_vec = vec![0; n];
+            // let mut secret_vec = vec![0; n];
             // TODO: choose index randomly
-            secret_vec[0] = 1;
+            // secret_vec[n-1] = 1;
             
             // 1. Create the proof
             let mut transcript = Transcript::new(b"VecInnerProductProofTest");
@@ -442,9 +465,9 @@ mod tests {
                 &bp_gens,
                 &pc_gens,
                 &mut transcript,
-                secret_vec,
-                10, 
-                Scalar::one(),
+                0, 
+                Scalar::zero(),
+                n,
             )
             .unwrap();
 
@@ -474,5 +497,9 @@ mod tests {
     #[test]
     fn test_n_2() {
         create_and_verify_helper(2);
+    }
+    #[test]
+    fn test_n_4() {
+        create_and_verify_helper(4);
     }
 }

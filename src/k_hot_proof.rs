@@ -112,14 +112,8 @@ impl KHotProof {
         let mut l_poly = util::VecPoly1::zero(n);
         let mut r_poly = util::VecPoly1::zero(n);
 
-        // This shouldn't do anything - offsets are one.
-        let j = 0;
-        let offset_y = util::scalar_exp_vartime(&y, (j * n) as u64);
-        let offset_z = util::scalar_exp_vartime(&z, j as u64);
-        let offset_zz = z * z * offset_z;
-
         let zz = z * z;
-        let mut exp_y = offset_y;
+        let mut exp_y = Scalar::one();
         let mut exp_2 = Scalar::one(); // start at 2^0 = 1
         for i in 0..n {
             let a_L_i = Scalar::from((v >> i) & 1);
@@ -130,7 +124,7 @@ impl KHotProof {
 
             l_poly.0[i] = a_L_i - z;
             l_poly.1[i] = s_L[i];
-            r_poly.0[i] = exp_y * (a_R_i + z) + offset_zz;
+            r_poly.0[i] = exp_y * (a_R_i + z) + zz;
             r_poly.1[i] = exp_y * s_R[i];
 
             println!("l_poly.0[i] = {:?}", l_poly.0[i]);
@@ -246,41 +240,21 @@ impl KHotProof {
         let b = self.ipp_proof.b;
         let m = 1;
 
-          // Construct concat_z_and_2, an iterator of the values of
-        // z^0 * \vec(2)^n || z^1 * \vec(2)^n || ... || z^(m-1) * \vec(2)^n
-        let powers_of_2: Vec<Scalar> = util::exp_iter(Scalar::from(2u64)).take(n).collect();
+          // Construct concat_z_and_1, an iterator of the values of
+        // z^0 * \vec(1)^n || z^1 * \vec(1)^n || ... || z^(m-1) * \vec(1)^n
         let powers_of_1: Vec<Scalar> = util::exp_iter(Scalar::from(1u64)).take(n).collect();
 
-        let concat_z_and_2: Vec<Scalar> = util::exp_iter(z)
+        let concat_z_and_1: Vec<Scalar> = util::exp_iter(z)
             .take(m)
             .flat_map(|exp_z| powers_of_1.iter().map(move |exp_2| exp_2 * exp_z))
             .collect();
 
-/*
-        // Construct concat_z_and_2, an iterator of the values of
-        // z^0 * \vec(2)^n || z^1 * \vec(2)^n || ... || z^(m-1) * \vec(2)^n
-        let powers_of_2: Vec<Scalar> = util::exp_iter(Scalar::from(2u64)).take(n).collect();
-        let concat_z_and_2: Vec<Scalar> = util::exp_iter(z)
-            .take(m)
-            .flat_map(|exp_z| powers_of_2.iter().map(move |exp_2| exp_2 * exp_z))
-            .collect();
-
-        let h = s_inv
-            .zip(util::exp_iter(y.invert()))
-            .zip(concat_z_and_2.iter())
-            .map(|((s_i_inv, exp_y_inv), z_and_2)| z + exp_y_inv * (zz * z_and_2 - b * s_i_inv));
-
-        let value_commitment_scalars = util::exp_iter(z).take(m).map(|z_exp| c * zz * z_exp);
-        let basepoint_scalar = w * (self.t_x - a * b) + c * (delta(n, m, &y, &z) - self.t_x);
-*/
-
         let g = s.iter().map(|s_i| minus_z - a * s_i);
         let h = s_inv
             .zip(util::exp_iter(y.invert()))
-            .zip(concat_z_and_2.iter())
-            .map(|((s_i_inv, exp_y_inv), z_and_2)| z + exp_y_inv * (zz * z_and_2 - b * s_i_inv));
+            .zip(concat_z_and_1.iter())
+            .map(|((s_i_inv, exp_y_inv), z_and_1)| z + exp_y_inv * (zz * z_and_1 - b * s_i_inv));
 
-        // let value_commitment_scalars = util::exp_iter(z).take(m).map(|z_exp| c * zz * z_exp);
         let basepoint_scalar = w * (self.t_x - a * b) + c * (delta(n, &y, &z) + k * zz - self.t_x);
 
         let mega_check = RistrettoPoint::optional_multiscalar_mul(
@@ -294,7 +268,6 @@ impl KHotProof {
                 .chain(iter::once(basepoint_scalar))
                 .chain(g)
                 .chain(h),
-                // .chain(value_commitment_scalars),
             iter::once(self.A.decompress())
                 .chain(iter::once(self.S.decompress()))
                 .chain(iter::once(self.T_1.decompress()))
@@ -305,7 +278,6 @@ impl KHotProof {
                 .chain(iter::once(Some(pc_gens.B)))
                 .chain(bp_gens.G(n, m).map(|&x| Some(x)))
                 .chain(bp_gens.H(n, m).map(|&x| Some(x))),
-                // .chain(iter::once(Some(pc_gens.B + pc_gens.B_blinding))),
         )
         .ok_or_else(|| ProofError::VerificationError)?;
 
@@ -439,7 +411,7 @@ fn delta(n: usize, y: &Scalar, z: &Scalar) -> Scalar {
 #[cfg(test)]
 mod tests {
     use super::*;
-/*
+
     #[test]
     fn test_delta() {
         let mut rng = rand::thread_rng();
@@ -459,7 +431,7 @@ mod tests {
         }
         assert_eq!(power_g, delta(n, &y, &z));
     }
-*/
+
     fn create_and_verify_helper(n: usize) {
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(n, 1);

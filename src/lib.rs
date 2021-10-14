@@ -28,6 +28,7 @@ mod errors;
 mod generators;
 mod inner_product_proof;
 mod range_proof;
+mod k_hot_proof;
 mod vec_ipp;
 mod transcript;
 

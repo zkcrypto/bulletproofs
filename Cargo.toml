@@ -75,7 +75,12 @@ harness = false
 required-features = ["yoloproofs", "avx2_backend"]
 
 [[bench]]
-name = "k_hot"
+name = "k_hot_r1cs"
+harness = false
+required-features = ["yoloproofs"]
+
+[[bench]]
+name = "k_hot_direct"
 harness = false
 required-features = ["yoloproofs"]
 

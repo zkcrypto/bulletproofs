@@ -55,10 +55,9 @@ impl KHotProof {
         bp_generators: &BulletproofGens,
         pc_gens: &PedersenGens,
         transcript: &mut Transcript,
-        v: u64,
-        n: usize,
-        // public_vec: Vec<u8>,
+        secret_vec: Vec<u8>,
     ) -> Result<KHotProof, ProofError> {
+        let n = secret_vec.len();
         if bp_generators.gens_capacity < n {
             return Err(ProofError::InvalidGeneratorsLength);
         }
@@ -77,10 +76,7 @@ impl KHotProof {
         for (G_i, H_i) in bp_gens.G(n).zip(bp_gens.H(n)) {
             // If v_i = 0, we add a_L[i] * G[i] + a_R[i] * H[i] = - H[i]
             // If v_i = 1, we add a_L[i] * G[i] + a_R[i] * H[i] =   G[i]
-            // when we want to use the secret vec instead:
-            // let v_i = Choice::from(secret_vec[i]);
-            let v_i = Choice::from(((v >> i) & 1) as u8);
-            println!("v_i: {:?}", (v >> i) & 1);
+            let v_i = Choice::from(secret_vec[i]);
             let mut point = -H_i;
             point.conditional_assign(G_i, v_i);
             A += point;
@@ -106,8 +102,6 @@ impl KHotProof {
         let y = transcript.challenge_scalar(b"y");
         let z = transcript.challenge_scalar(b"z");
 
-        println!("z = {:?}", z);
-
         // Calculate t by calculating vectors l0, l1, r0, r1 and multiplying
         let mut l_poly = util::VecPoly1::zero(n);
         let mut r_poly = util::VecPoly1::zero(n);
@@ -116,8 +110,7 @@ impl KHotProof {
         let mut exp_y = Scalar::one();
         let mut exp_2 = Scalar::one(); // start at 2^0 = 1
         for i in 0..n {
-            let a_L_i = Scalar::from((v >> i) & 1);
-            println!("a_L_i = {:?}", a_L_i);
+            let a_L_i = Scalar::from(secret_vec[i]);
             // restore this when we pull val from secret_vec
             // let a_L_i = Scalar::from(secret_vec[i]);
             let a_R_i = a_L_i - Scalar::one();
@@ -126,9 +119,6 @@ impl KHotProof {
             l_poly.1[i] = s_L[i];
             r_poly.0[i] = exp_y * (a_R_i + z) + zz;
             r_poly.1[i] = exp_y * s_R[i];
-
-            println!("l_poly.0[i] = {:?}", l_poly.0[i]);
-            println!("l_poly.1[i] = {:?}", l_poly.1[i]);
 
             exp_y *= y; // y^i -> y^(i+1)
             exp_2 = exp_2 + exp_2; // 2^i -> 2^(i+1)
@@ -439,9 +429,9 @@ mod tests {
         // Prover's scope
         let proof_bytes = {
             // 0. Create witness data
-            // let mut secret_vec = vec![0; n];
+            let mut secret_vec = vec![0; n];
             // TODO: choose index randomly
-            // secret_vec[n-1] = 1;
+            secret_vec[n-1] = 1;
             
             // 1. Create the proof
             let mut transcript = Transcript::new(b"KHotProofTest");
@@ -449,8 +439,7 @@ mod tests {
                 &bp_gens,
                 &pc_gens,
                 &mut transcript,
-                1, 
-                n,
+                secret_vec,
             )
             .unwrap();
 
@@ -484,5 +473,29 @@ mod tests {
     #[test]
     fn test_n_4() {
         create_and_verify_helper(4);
+    }
+    #[test]
+    fn test_n_32() {
+        create_and_verify_helper(32);
+    }
+    #[test]
+    fn test_n_64() {
+        create_and_verify_helper(64);
+    }
+    #[test]
+    fn test_n_1024() {
+        create_and_verify_helper(1024);
+    }
+    #[test]
+    fn test_n_131072() {
+        create_and_verify_helper(131072);
+    }
+    #[test]
+    fn test_n_524288() {
+        create_and_verify_helper(1024);
+    }
+    #[test]
+    fn test_n_1048576() {
+        create_and_verify_helper(1048576);
     }
 }

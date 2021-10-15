@@ -152,7 +152,8 @@ const LG_MAX_SHUFFLE_SIZE: usize = 14;
 /// Maximum k-hot vector length to benchmark.
 const MAX_SHUFFLE_SIZE: usize = 1 << LG_MAX_SHUFFLE_SIZE;
 /// Different k-hot vector lengths to try
-static TEST_SIZES: [usize; 6] = [1, 2, 32, 64, 1024, 16384];
+// static TEST_SIZES: [usize; 6] = [1, 2, 32, 64, 1024, 16384];
+static TEST_SIZES: [usize; 0] = [];
 
 fn bench_khot_prove(c: &mut Criterion) {
     // Construct Bulletproof generators externally

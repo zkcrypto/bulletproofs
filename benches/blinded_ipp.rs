@@ -108,7 +108,7 @@ fn bench_blinded_ipp_prove(c: &mut Criterion) {
     let pc_gens = PedersenGens::default();
     // Make a generator that will accomodate the largest test case
     let max_test_size = TEST_SIZES.iter().max().unwrap();
-    let bp_gens = BulletproofGens::new(*max_test_size, 1);
+    let bp_gens = BulletproofGens::new(*max_test_size * 2, 1);
 
     c.bench_function_over_inputs(
         "blinded inner product proof creation",
@@ -143,7 +143,7 @@ fn bench_blinded_ipp_verify(c: &mut Criterion) {
     let pc_gens = PedersenGens::default();
     // Make a generator that will accomodate the largest test case
     let max_test_size = TEST_SIZES.iter().max().unwrap();
-    let bp_gens = BulletproofGens::new(*max_test_size, 1);
+    let bp_gens = BulletproofGens::new(*max_test_size * 2 , 1);
 
     c.bench_function_over_inputs(
         "blinded inner product proof verification",

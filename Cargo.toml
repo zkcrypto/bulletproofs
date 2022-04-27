@@ -88,3 +88,8 @@ required-features = ["yoloproofs"]
 name = "one_hot"
 harness = false
 required-features = ["yoloproofs"]
+
+[[bench]]
+name = "blinded_ipp"
+harness = false
+required-features = ["yoloproofs"]

@@ -85,7 +85,7 @@ impl BlindedIPProof {
 
         // 3. Build a CS 
         let mut sum_o = LinearCombination::from(verifier.allocate(None)?);
-	    for i in 0..k {
+	    for _ in 0..k {
 	        // Create low-level variables and add them to constraints
 	        let (_, _, o) = verifier.allocate_multiplier(None)?;
 
@@ -159,6 +159,8 @@ fn bench_blinded_ipp_verify(c: &mut Criterion) {
 	                *n,
 	            ).unwrap()
             };
+
+            println!("proof size: {:?} bytes", proof.0.serialized_size());
             
             b.iter(|| {
                 // Each proof creation requires a clean transcript.

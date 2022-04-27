@@ -25,33 +25,6 @@ static TEST_SIZES: [usize; 32] = [41, 64, 103, 128, 164, 205, 256, 328, 410, 512
 struct BlindedIPProof(R1CSProof);
 
 impl BlindedIPProof {
-    fn gadget<CS: RandomizableConstraintSystem>(
-        cs: &mut CS,
-        a: Vec<Option<Scalar>>,
-        b: Vec<Option<Scalar>>,
-        c: Option<Scalar>,
-    ) -> Result<(), R1CSError> {
-    	let mut sum_o = LinearCombination::from(cs.allocate(c)?);
-
-	    for i in 0..a.len() {
-	        // Create low-level variables and add them to constraints
-	        let (_, _, o) = cs.allocate_multiplier(Some((a[i].unwrap(), b[i].unwrap())))?;
-
-	        // Add `o` to the linear combination sum_o
-	        // in order to form the following constraint by the end of the loop:
-	        // 0 = c - Sum_i(x_i * y_i)
-	        // which gives us: c = Sum_i(x_i * y_i)
-	        sum_o = sum_o - o;
-	    }
-
-	    // Enforce that 0 = c - Sum_i(x_i * y_i)
-	    cs.constrain(sum_o);
-
-	    Ok(())
-    }
-}
-
-impl BlindedIPProof {
     /// Construct a proof that <a, b> = c
     pub fn prove<'a, 'b>(
         pc_gens: &'b PedersenGens,
@@ -68,21 +41,31 @@ impl BlindedIPProof {
 	    // 2. Generate arbitrary inputs to the blinded inner product argument.
 	    // Note that we don't have to explicitly commit to the inputs, 
 	    // as they will be implicily committed to within the proof via A_I and A_O.
-        let a: Vec<Option<Scalar>> = (0..k).map(|_| Some(Scalar::random(&mut rand::thread_rng()))).collect();
-        let b: Vec<Option<Scalar>> = (0..k).map(|_| Some(Scalar::random(&mut rand::thread_rng()))).collect();
-        let c: Scalar = a.iter().zip(b.iter()).map(|(a_i, b_i)| a_i.unwrap() * b_i.unwrap()).sum();
+        let a: Vec<Scalar> = (0..k).map(|_| Scalar::random(&mut rand::thread_rng())).collect();
+        let b: Vec<Scalar> = (0..k).map(|_| Scalar::random(&mut rand::thread_rng())).collect();
+        let c: Scalar = a.iter().zip(b.iter()).map(|(a_i, b_i)| a_i * b_i).sum();
 
         // 3. Build a CS 
-        BlindedIPProof::gadget(&mut prover, a, b, Some(c))?;
+        let mut sum_o = LinearCombination::from(prover.allocate(Some(c))?);
+	    for i in 0..a.len() {
+	        // Create low-level variables and add them to constraints
+	        let (_, _, o) = prover.allocate_multiplier(Some((a[i], b[i])))?;
+
+	        // Add `o` to the linear combination sum_o
+	        // in order to form the following constraint by the end of the loop:
+	        // 0 = c - Sum_i(x_i * y_i)
+	        // which gives us: c = Sum_i(x_i * y_i)
+	        sum_o = sum_o - o;
+	    }
+	    // Enforce that 0 = c - Sum_i(x_i * y_i)
+	    prover.constrain(sum_o);
 
 		// 4. Make a proof
 		let proof = prover.prove(bp_gens)?;
 
 		Ok(BlindedIPProof(proof))
 	}
-}
 
-impl BlindedIPProof {
     /// Attempt to verify a blinded inner product proof.
     pub fn verify<'a, 'b>(
         &self,
@@ -100,8 +83,20 @@ impl BlindedIPProof {
         // 2. Don't need to make or receive commitments to the inputs, 
         // as they are implicitly committed to within the proof via A_I and A_O.
 
-        // 3. Build a CS
-        BlindedIPProof::gadget(&mut verifier, vec![None; k], vec![None; k], None)?;
+        // 3. Build a CS 
+        let mut sum_o = LinearCombination::from(verifier.allocate(None)?);
+	    for i in 0..k {
+	        // Create low-level variables and add them to constraints
+	        let (_, _, o) = verifier.allocate_multiplier(None)?;
+
+	        // Add `o` to the linear combination sum_o
+	        // in order to form the following constraint by the end of the loop:
+	        // 0 = c - Sum_i(x_i * y_i)
+	        // which gives us: c = Sum_i(x_i * y_i)
+	        sum_o = sum_o - o;
+	    }
+	    // Enforce that 0 = c - Sum_i(x_i * y_i)
+	    verifier.constrain(sum_o);
 
         // 4. Verify proof
         verifier.verify(&self.0, &pc_gens, &bp_gens)

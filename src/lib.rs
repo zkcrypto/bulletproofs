@@ -31,6 +31,7 @@ mod range_proof;
 mod k_hot_proof;
 mod vec_ipp;
 mod transcript;
+mod linear_proof;
 
 pub use crate::errors::ProofError;
 pub use crate::generators::{BulletproofGens, BulletproofGensShare, PedersenGens};

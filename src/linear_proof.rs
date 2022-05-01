@@ -157,6 +157,72 @@ impl LinearProof {
             r: r_star,
         }
     }
+/*
+    /// This method is for testing that proof generation work,
+    /// but for efficiency the actual protocols would use the `verification_scalars`
+    /// method to combine inner product verification with other checks
+    /// in a single multiscalar multiplication. (TODO: write `verification_scalars` function).
+    #[allow(dead_code)]
+    pub fn verify(
+        &self,
+        n: usize,
+        transcript: &mut Transcript,
+        F: &RistrettoPoint,
+        B: &RistrettoPoint,
+        G: &[RistrettoPoint],
+    ) -> Result<(), ProofError>
+    {
+        let (u_sq, u_inv_sq, s) = self.verification_scalars(n, transcript)?;
+
+        let g_times_a_times_s = G_factors
+            .into_iter()
+            .zip(s.iter())
+            .map(|(g_i, s_i)| (self.a * s_i) * g_i.borrow())
+            .take(G.len());
+
+        // 1/s[i] is s[!i], and !i runs from n-1 to 0 as i runs from 0 to n-1
+        let inv_s = s.iter().rev();
+
+        let h_times_b_div_s = H_factors
+            .into_iter()
+            .zip(inv_s)
+            .map(|(h_i, s_i_inv)| (self.b * s_i_inv) * h_i.borrow());
+
+        let neg_u_sq = u_sq.iter().map(|ui| -ui);
+        let neg_u_inv_sq = u_inv_sq.iter().map(|ui| -ui);
+
+        let Ls = self
+            .L_vec
+            .iter()
+            .map(|p| p.decompress().ok_or(ProofError::VerificationError))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let Rs = self
+            .R_vec
+            .iter()
+            .map(|p| p.decompress().ok_or(ProofError::VerificationError))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let expect_P = RistrettoPoint::vartime_multiscalar_mul(
+            iter::once(self.a * self.b)
+                .chain(g_times_a_times_s)
+                .chain(h_times_b_div_s)
+                .chain(neg_u_sq)
+                .chain(neg_u_inv_sq),
+            iter::once(Q)
+                .chain(G.iter())
+                .chain(H.iter())
+                .chain(Ls.iter())
+                .chain(Rs.iter()),
+        );
+
+        if expect_P == *P {
+            Ok(())
+        } else {
+            Err(ProofError::VerificationError)
+        }
+    }
+*/
 }
 
 #[cfg(test)]
@@ -207,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn make_proof() {
+    fn test_linear_proof() {
         test_helper_create(16);
     }
 }

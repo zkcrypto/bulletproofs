@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-use alloc::borrow::Borrow;
 use alloc::vec::Vec;
 
 use core::iter;
@@ -145,7 +144,7 @@ impl LinearProof {
         let S = (t_star * B + s_star * b[0] * F + s_star * G[0]).compress();
         transcript.append_point(b"S", &S);
         let x_star = transcript.challenge_scalar(b"x_star");
-        let a_star = s_star * a[0];
+        let a_star = s_star * x_star * a[0];
         let r_star = t_star + s_star * r;
 
         LinearProof {
@@ -157,12 +156,63 @@ impl LinearProof {
             r: r_star,
         }
     }
-/*
-    /// This method is for testing that proof generation work,
-    /// but for efficiency the actual protocols would use the `verification_scalars`
-    /// method to combine inner product verification with other checks
-    /// in a single multiscalar multiplication. (TODO: write `verification_scalars` function).
-    #[allow(dead_code)]
+
+    /// Computes vectors of verification scalars \\([x\_{i}]\\), \\([x\_{i}^{-1}]\\) and \\([s\_{i}]\\)
+    /// for combined multiscalar multiplication in a parent protocol.
+    /// The verifier must provide the input length \\(n\\) explicitly to avoid unbounded allocation.
+    pub(crate) fn verification_scalars(
+        &self,
+        n: usize,
+        transcript: &mut Transcript,
+    ) -> Result<(Vec<Scalar>, Vec<Scalar>, Vec<Scalar>), ProofError> {
+        let lg_n = self.L_vec.len();
+        if lg_n >= 32 {
+            // 4 billion multiplications should be enough for anyone
+            // and this check prevents overflow in 1<<lg_n below.
+            return Err(ProofError::VerificationError);
+        }
+        if n != (1 << lg_n) {
+            return Err(ProofError::VerificationError);
+        }
+
+        transcript.innerproduct_domain_sep(n as u64);
+        transcript.append_point(b"C", &self.C);
+
+        // 1. Recompute x_k,...,x_1 based on the proof transcript
+
+        let mut challenges = Vec::with_capacity(lg_n);
+        for (L, R) in self.L_vec.iter().zip(self.R_vec.iter()) {
+            transcript.validate_and_append_point(b"L", L)?;
+            transcript.validate_and_append_point(b"R", R)?;
+            challenges.push(transcript.challenge_scalar(b"x_j"));
+        }
+
+        // 2. Compute the challenge inverses: 1/x_k, ..., 1/x_1
+        let mut challenges_inv = challenges.clone();
+        Scalar::batch_invert(&mut challenges_inv);
+
+        // 3. Compute s values inductively.
+        // for i = 1..n, s_i = product_(j=1^{log_2(n)}) x_j ^ b(i,j)
+        // Where b(i,j) = 1 if the jth bit of (i-1) is 1, and 0 otherwise.
+        // In other words, s is the subset-product of the x_j's.
+        // In GHL'21 this is referred to as `x<i>`.
+        //
+        // Note that this is different from the Bulletproofs `s` generation,
+        // where b(i, j) = 1 if the jth bit of (i-1) is 1, and -1 otherwise.
+        let mut s = Vec::with_capacity(n);
+        s.push(Scalar::zero());
+        for i in 1..n {
+            let lg_i = (32 - 1 - (i as u32).leading_zeros()) as usize;
+            let k = 1 << lg_i;
+            // The challenges are stored in "creation order" as [x_k,...,x_1],
+            // so x_{lg(i)+1} = is indexed by (lg_n-1) - lg_i
+            let x_lg_i = challenges[(lg_n - 1) - lg_i];
+            s.push(s[i - k] * x_lg_i);
+        }
+
+        Ok((challenges, challenges_inv, s))
+    }
+
     pub fn verify(
         &self,
         n: usize,
@@ -170,66 +220,63 @@ impl LinearProof {
         F: &RistrettoPoint,
         B: &RistrettoPoint,
         G: &[RistrettoPoint],
+        // Common input
+        b: Vec<Scalar>,
     ) -> Result<(), ProofError>
     {
-        let (u_sq, u_inv_sq, s) = self.verification_scalars(n, transcript)?;
+        let (x_vec, x_inv_vec, s) = self.verification_scalars(n, transcript)?;
+        transcript.append_point(b"S", &self.S);
+        let x_star = transcript.challenge_scalar(b"x_star");
 
-        let g_times_a_times_s = G_factors
-            .into_iter()
-            .zip(s.iter())
-            .map(|(g_i, s_i)| (self.a * s_i) * g_i.borrow())
-            .take(G.len());
+        // simple_factors = r_star * B + a_star * b_0 * F
+        let simple_factors: RistrettoPoint = self.r * B + self.a * b[0] * F;
 
-        // 1/s[i] is s[!i], and !i runs from n-1 to 0 as i runs from 0 to n-1
-        let inv_s = s.iter().rev();
-
-        let h_times_b_div_s = H_factors
-            .into_iter()
-            .zip(inv_s)
-            .map(|(h_i, s_i_inv)| (self.b * s_i_inv) * h_i.borrow());
-
-        let neg_u_sq = u_sq.iter().map(|ui| -ui);
-        let neg_u_inv_sq = u_inv_sq.iter().map(|ui| -ui);
-
+        // Decompress the compressed L values
         let Ls = self
             .L_vec
             .iter()
             .map(|p| p.decompress().ok_or(ProofError::VerificationError))
             .collect::<Result<Vec<_>, _>>()?;
 
+        // Decompress the compressed R values
         let Rs = self
             .R_vec
             .iter()
             .map(|p| p.decompress().ok_or(ProofError::VerificationError))
             .collect::<Result<Vec<_>, _>>()?;
 
-        let expect_P = RistrettoPoint::vartime_multiscalar_mul(
-            iter::once(self.a * self.b)
-                .chain(g_times_a_times_s)
-                .chain(h_times_b_div_s)
-                .chain(neg_u_sq)
-                .chain(neg_u_inv_sq),
-            iter::once(Q)
-                .chain(G.iter())
-                .chain(H.iter())
-                .chain(Ls.iter())
+        let C = self.C.decompress().ok_or(ProofError::VerificationError)?;
+        let S = self.S.decompress().ok_or(ProofError::VerificationError)?;
+
+        // L_R_factors = x_star * (C + sum_{j=0}^{l-1} x_j^-1 * L_j + sum_{j=0}^{l-1} x_j * R_j)
+        let L_R_factors: RistrettoPoint = x_star * (C + RistrettoPoint::vartime_multiscalar_mul(
+            x_inv_vec.iter()
+                .chain(x_vec.iter()),
+            Ls.iter()
                 .chain(Rs.iter()),
+        ));
+
+        // x_factors = a_star * sum_{i=0}^{2^l-1} x<i> * G_i
+        let x_factors: RistrettoPoint = self.a * RistrettoPoint::vartime_multiscalar_mul(
+            s.iter(),
+            G.iter()
         );
 
-        if expect_P == *P {
+        let expect_S = simple_factors + L_R_factors + x_factors;
+
+        if expect_S == S {
             Ok(())
         } else {
             Err(ProofError::VerificationError)
         }
     }
-*/
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn test_helper_create(n: usize) {
+    fn test_helper(n: usize) {
         let mut rng = rand::thread_rng();
 
         use crate::generators::{BulletproofGens, PedersenGens};
@@ -244,7 +291,7 @@ mod tests {
         let a: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
         let b: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
 
-        let mut transcript = Transcript::new(b"linearprooftest");
+        let mut prover_transcript = Transcript::new(b"linearprooftest");
 
         // C = <a, G> + r * B + <a, b> * F
         let r = Scalar::random(&mut rng);
@@ -260,20 +307,30 @@ mod tests {
             .compress();
 
         let proof = LinearProof::create(
-            &mut transcript,
+            &mut prover_transcript,
             &mut rng,
             &C,
             r,
             a,
-            b,
-            G,
+            b.clone(),
+            G.clone(),
             &F,
             &B,
         );
+
+        let mut verifier_transcript = Transcript::new(b"linearprooftest");
+        assert!(proof.verify(
+            n,
+            &mut verifier_transcript,
+            &B,
+            &F,
+            &G,
+            b,
+        ).is_ok());
     }
 
     #[test]
     fn test_linear_proof() {
-        test_helper_create(16);
+        test_helper(16);
     }
 }

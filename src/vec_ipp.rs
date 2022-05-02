@@ -13,7 +13,7 @@ use core::iter;
 
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::traits::{IsIdentity, VartimeMultiscalarMul, MultiscalarMul};
+use curve25519_dalek::traits::MultiscalarMul;
 use merlin::Transcript;
 
 use crate::errors::ProofError;
@@ -49,6 +49,7 @@ pub struct VecInnerProductProof {
 
 impl VecInnerProductProof {
     /// Create a VecInnerProductProof for a given vector.
+    #[allow(dead_code)]
     pub fn prove(
         bp_gens: &BulletproofGens,
         pc_gens: &PedersenGens,
@@ -99,7 +100,7 @@ impl VecInnerProductProof {
         transcript.append_point(b"S", &S.compress());
 
         let y = transcript.challenge_scalar(b"y");
-        let z = transcript.challenge_scalar(b"z");
+        let _z = transcript.challenge_scalar(b"z");
 
         // Calculate t by calculating vectors l0, l1, r0, r1 and multiplying
         let mut l_poly = util::VecPoly1::zero(n);
@@ -169,6 +170,7 @@ impl VecInnerProductProof {
     }
 
     /// Verify a VecInnerProductProof
+    #[allow(dead_code)]
     pub fn verify(
         &self,
         bp_gens: &BulletproofGens,
@@ -187,8 +189,8 @@ impl VecInnerProductProof {
         transcript.validate_and_append_point(b"A", &self.A)?;
         transcript.validate_and_append_point(b"S", &self.S)?;
 
-        let y = transcript.challenge_scalar(b"y");
-        let z = transcript.challenge_scalar(b"z");
+        let _y = transcript.challenge_scalar(b"y");
+        let _z = transcript.challenge_scalar(b"z");
 
         transcript.validate_and_append_point(b"T_1", &self.T_1)?;
 
@@ -198,16 +200,16 @@ impl VecInnerProductProof {
         transcript.append_scalar(b"t_x_blinding", &self.t_x_blinding);
         transcript.append_scalar(b"e_blinding", &self.e_blinding);
 
-        let w = transcript.challenge_scalar(b"w");
+        let _w = transcript.challenge_scalar(b"w");
 
         // Challenge value for batching statements to be verified
-        let c = Scalar::random(rng);
+        let _c = Scalar::random(rng);
 
-        let (x_sq, x_inv_sq, s) = self.ipp_proof.verification_scalars(n, transcript)?;
-        let s_inv = s.iter().rev();
+        let (_x_sq, _x_inv_sq, s) = self.ipp_proof.verification_scalars(n, transcript)?;
+        let _s_inv = s.iter().rev();
 
-        let a = self.ipp_proof.a;
-        let b = self.ipp_proof.b;
+        let _a = self.ipp_proof.a;
+        let _b = self.ipp_proof.b;
         let V_decomp = V.decompress().ok_or_else(|| ProofError::FormatError)?;
         let T_1_decomp = self.T_1.decompress().ok_or_else(|| ProofError::FormatError)?;
 
@@ -328,6 +330,7 @@ impl<'de> Deserialize<'de> for VecInnerProductProof {
 /// \\[
 /// \delta(y,z) = (z - z^{2}) \langle \mathbf{1}, {\mathbf{y}}^{n} \rangle - z^3 \cdot n
 /// \\]
+#[allow(dead_code)]
 fn delta(n: usize, y: &Scalar, z: &Scalar) -> Scalar {
     // let z2 = z * z;
     // let z3 = z2 * z;

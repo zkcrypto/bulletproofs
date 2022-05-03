@@ -36,7 +36,7 @@ impl KHotProof {
             // Create low-level variables and add them to constraints
             let (a, b, o) = cs.allocate_multiplier(x_assignment.as_ref().map(|x_open| {
                 let bit: u64 = x_open[i];
-                ((1-bit).into(), bit.into())
+                ((1 - bit).into(), bit.into())
             }))?;
 
             // Enforce a * b = 0, so one of (a,b) is zero
@@ -68,13 +68,7 @@ impl KHotProof {
         transcript: &'a mut Transcript,
         input: Vec<u64>,
         k: u64,
-    ) -> Result<
-        (
-            KHotProof,
-            Vec<CompressedRistretto>,
-        ),
-        R1CSError,
-    > {
+    ) -> Result<(KHotProof, Vec<CompressedRistretto>), R1CSError> {
         // Apply a domain separator with the k-hot parameters to the transcript
         // XXX should this be part of the gadget?
         let l = input.len();
@@ -136,19 +130,19 @@ impl KHotProof {
 fn khot_helper(k: u64, l: usize) {
     // Common code
     let pc_gens = PedersenGens::default();
-    let bp_gens = BulletproofGens::new((l*2).next_power_of_two(), 1);
+    let bp_gens = BulletproofGens::new((l * 2).next_power_of_two(), 1);
 
     let (proof, input_commitments) = {
         use rand::Rng;
 
-        // Randomly generate inputs 
+        // Randomly generate inputs
         let mut input: Vec<u64> = vec![0; l];
         let mut rng = rand::thread_rng();
         for _ in 0..k {
             let hot_index = rng.gen_range(0..l);
             input[hot_index] = 1;
         }
-        
+
         let mut prover_transcript = Transcript::new(b"KHotProofTest");
         KHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input, k).unwrap()
     };
@@ -166,7 +160,6 @@ fn khot_helper(k: u64, l: usize) {
             .is_ok());
     }
 }
-
 
 #[test]
 fn khot_gadget_test_1_1() {

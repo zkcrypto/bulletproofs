@@ -39,7 +39,7 @@ use merlin::Transcript;
 /// This should be cheap, since addition and multiplication by known scalars are efficient.
 /// This trick is discussed and proven here: https://eprint.iacr.org/2018/707.pdf (p. 29)
 ///
-/// Circuit sketch: 
+/// Circuit sketch:
 /// xr_left: a LinearConstraint representing <x, r>
 /// xr_right: another LinearConstraint representing <x, r>
 /// xr_sq_all: the multiplication gate output, from multiplying xr-left and xr-right.
@@ -66,7 +66,7 @@ impl OneHotProof {
                 xr_left = xr_left + x[i] * r_i;
                 xr_right = xr_right + x[i] * r_i;
                 xr_sq_r = xr_sq_r + x[i] * r_i * r_i;
-            };
+            }
 
             let (_, _, xr_sq_all) = cs.multiply(xr_left, xr_right);
             cs.constrain(xr_sq_all - xr_sq_r);
@@ -85,13 +85,7 @@ impl OneHotProof {
         bp_gens: &'b BulletproofGens,
         transcript: &'a mut Transcript,
         input: Vec<u64>,
-    ) -> Result<
-        (
-            OneHotProof,
-            Vec<CompressedRistretto>,
-        ),
-        R1CSError,
-    > {
+    ) -> Result<(OneHotProof, Vec<CompressedRistretto>), R1CSError> {
         // Apply a domain separator with the k-hot parameters to the transcript
         // XXX should this be part of the gadget?
         let l = input.len();
@@ -210,8 +204,7 @@ fn bench_one_hot_verify(c: &mut Criterion) {
 
                 // Make k-hot proof
                 let mut prover_transcript = Transcript::new(b"OneHotBenchmark");
-                OneHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input)
-                    .unwrap()
+                OneHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input).unwrap()
             };
 
             // Verify kshuffle proof

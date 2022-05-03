@@ -26,7 +26,7 @@ use merlin::Transcript;
 /// This should be cheap, since addition and multiplication by known scalars are efficient.
 /// This trick is discussed and proven here: https://eprint.iacr.org/2018/707.pdf (p. 29)
 ///
-/// Circuit sketch: 
+/// Circuit sketch:
 /// xr_left: a LinearConstraint representing <x, r>
 /// xr_right: another LinearConstraint representing <x, r>
 /// xr_sq_all: the multiplication gate output, from multiplying xr-left and xr-right.
@@ -53,7 +53,7 @@ impl OneHotProof {
                 xr_left = xr_left + x[i] * r_i;
                 xr_right = xr_right + x[i] * r_i;
                 xr_sq_r = xr_sq_r + x[i] * r_i * r_i;
-            };
+            }
 
             let (_, _, xr_sq_all) = cs.multiply(xr_left, xr_right);
             cs.constrain(xr_sq_all - xr_sq_r);
@@ -72,13 +72,7 @@ impl OneHotProof {
         bp_gens: &'b BulletproofGens,
         transcript: &'a mut Transcript,
         input: Vec<u64>,
-    ) -> Result<
-        (
-            OneHotProof,
-            Vec<CompressedRistretto>,
-        ),
-        R1CSError,
-    > {
+    ) -> Result<(OneHotProof, Vec<CompressedRistretto>), R1CSError> {
         // Apply a domain separator with the k-hot parameters to the transcript
         // XXX should this be part of the gadget?
         let l = input.len();
@@ -137,18 +131,18 @@ impl OneHotProof {
 fn one_hot_helper(l: usize) {
     // Common code
     let pc_gens = PedersenGens::default();
-    let bp_gens = BulletproofGens::new((l*2).next_power_of_two(), 1);
+    let bp_gens = BulletproofGens::new((l * 2).next_power_of_two(), 1);
 
     let (proof, input_commitments) = {
         use rand::Rng;
 
-        // Randomly generate inputs 
+        // Randomly generate inputs
         let mut input: Vec<u64> = vec![0; l];
         let mut rng = rand::thread_rng();
-        
+
         let one_hot_index = rng.gen_range(0..l);
         input[one_hot_index] = 1;
-        
+
         let mut prover_transcript = Transcript::new(b"OneHotProofTest");
         OneHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input).unwrap()
     };
@@ -165,7 +159,6 @@ fn one_hot_helper(l: usize) {
             .is_ok());
     }
 }
-
 
 #[test]
 fn one_hot_gadget_test_1() {
@@ -199,10 +192,10 @@ fn one_hot_gadget_test_16384() {
 
 #[test]
 fn one_hot_gadget_fail_all_ones() {
-    let l : usize = 1024;
+    let l: usize = 1024;
     // Common code
     let pc_gens = PedersenGens::default();
-    let bp_gens = BulletproofGens::new((l*2).next_power_of_two(), 1);
+    let bp_gens = BulletproofGens::new((l * 2).next_power_of_two(), 1);
 
     let (proof, input_commitments) = {
         // Generate a vector of all ones (should fail)
@@ -227,10 +220,10 @@ fn one_hot_gadget_fail_all_ones() {
 
 #[test]
 fn one_hot_gadget_fail_large_k() {
-    let l : usize = 1024;
+    let l: usize = 1024;
     // Common code
     let pc_gens = PedersenGens::default();
-    let bp_gens = BulletproofGens::new((l*2).next_power_of_two(), 1);
+    let bp_gens = BulletproofGens::new((l * 2).next_power_of_two(), 1);
 
     let (proof, input_commitments) = {
         // Generate a vector of all ones (should fail)

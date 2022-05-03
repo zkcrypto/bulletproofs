@@ -24,18 +24,13 @@ fn create_k_hot_direct_helper(c: &mut Criterion) {
 
             let mut secret_vec = vec![0; *n];
             // TODO: choose index randomly
-            secret_vec[n-1] = 1;
+            secret_vec[n - 1] = 1;
 
             b.iter(|| {
                 // Each proof creation requires a clean transcript.
-            let mut transcript = Transcript::new(b"KHotDirectBenchmark");
+                let mut transcript = Transcript::new(b"KHotDirectBenchmark");
 
-                KHotProof::prove(
-                    &bp_gens,
-                    &pc_gens,
-                    &mut transcript,
-                    secret_vec.clone(),
-                )
+                KHotProof::prove(&bp_gens, &pc_gens, &mut transcript, secret_vec.clone())
             })
         },
         TEST_SIZES,
@@ -62,14 +57,8 @@ fn verify_k_hot_direct_helper(c: &mut Criterion) {
                 // Each proof creation requires a clean transcript.
                 let mut transcript = Transcript::new(b"KHotDirectBenchmark");
 
-                KHotProof::prove(
-                    &bp_gens,
-                    &pc_gens,
-                    &mut transcript,
-                    secret_vec,
-                ).unwrap()
+                KHotProof::prove(&bp_gens, &pc_gens, &mut transcript, secret_vec).unwrap()
             };
-            
 
             b.iter(|| {
                 // Each proof creation requires a clean transcript.

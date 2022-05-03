@@ -13,7 +13,7 @@ use core::iter;
 
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::traits::{IsIdentity, VartimeMultiscalarMul, MultiscalarMul};
+use curve25519_dalek::traits::{IsIdentity, MultiscalarMul, VartimeMultiscalarMul};
 use merlin::Transcript;
 
 use crate::errors::ProofError;
@@ -136,11 +136,7 @@ impl KHotProof {
         transcript.append_point(b"T_2", &T_2.compress());
         let x = transcript.challenge_scalar(b"x");
 
-        let t_blinding_poly = util::Poly2(
-            Scalar::zero(),
-            t_1_blinding,
-            t_2_blinding,
-        );
+        let t_blinding_poly = util::Poly2(Scalar::zero(), t_1_blinding, t_2_blinding);
 
         let t_x = t_poly.eval(x);
         let t_x_blinding = t_blinding_poly.eval(x);
@@ -157,9 +153,7 @@ impl KHotProof {
         let Q = w * pc_gens.B;
 
         let G_factors: Vec<Scalar> = iter::repeat(Scalar::one()).take(n).collect();
-        let H_factors: Vec<Scalar> = util::exp_iter(y.invert())
-            .take(n)
-            .collect();
+        let H_factors: Vec<Scalar> = util::exp_iter(y.invert()).take(n).collect();
 
         let ipp_proof = InnerProductProof::create(
             transcript,
@@ -193,7 +187,7 @@ impl KHotProof {
         n: usize,
     ) -> Result<(), ProofError> {
         // HARDCODED FOR TESTS
-        let k = Scalar::one(); 
+        let k = Scalar::one();
 
         if bp_gens.gens_capacity < n {
             return Err(ProofError::InvalidGeneratorsLength);
@@ -230,7 +224,7 @@ impl KHotProof {
         let b = self.ipp_proof.b;
         let m = 1;
 
-          // Construct concat_z_and_1, an iterator of the values of
+        // Construct concat_z_and_1, an iterator of the values of
         // z^0 * \vec(1)^n || z^1 * \vec(1)^n || ... || z^(m-1) * \vec(1)^n
         let powers_of_1: Vec<Scalar> = util::exp_iter(Scalar::from(1u64)).take(n).collect();
 
@@ -431,17 +425,11 @@ mod tests {
             // 0. Create witness data
             let mut secret_vec = vec![0; n];
             // TODO: choose index randomly
-            secret_vec[n-1] = 1;
-            
+            secret_vec[n - 1] = 1;
+
             // 1. Create the proof
             let mut transcript = Transcript::new(b"KHotProofTest");
-            let proof = KHotProof::prove(
-                &bp_gens,
-                &pc_gens,
-                &mut transcript,
-                secret_vec,
-            )
-            .unwrap();
+            let proof = KHotProof::prove(&bp_gens, &pc_gens, &mut transcript, secret_vec).unwrap();
 
             // 2. Return serialized proof and value commitments
             bincode::serialize(&proof).unwrap()
@@ -455,11 +443,8 @@ mod tests {
             // 4. Verify with the same customization label as above
             let mut transcript = Transcript::new(b"KHotProofTest");
 
-            assert!(proof
-                .verify(&bp_gens, &pc_gens, &mut transcript, n)
-                .is_ok());
+            assert!(proof.verify(&bp_gens, &pc_gens, &mut transcript, n).is_ok());
         }
-
     }
 
     #[test]

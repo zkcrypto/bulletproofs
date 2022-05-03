@@ -49,7 +49,7 @@ impl KHotProof {
             // Create low-level variables and add them to constraints
             let (a, b, o) = cs.allocate_multiplier(x_assignment.as_ref().map(|x_open| {
                 let bit: u64 = x_open[i];
-                ((1-bit).into(), bit.into())
+                ((1 - bit).into(), bit.into())
             }))?;
 
             // Enforce a * b = 0, so one of (a,b) is zero
@@ -81,13 +81,7 @@ impl KHotProof {
         transcript: &'a mut Transcript,
         input: Vec<u64>,
         k: u64,
-    ) -> Result<
-        (
-            KHotProof,
-            Vec<CompressedRistretto>,
-        ),
-        R1CSError,
-    > {
+    ) -> Result<(KHotProof, Vec<CompressedRistretto>), R1CSError> {
         // Apply a domain separator with the k-hot parameters to the transcript
         // XXX should this be part of the gadget?
         let l = input.len();
@@ -218,8 +212,7 @@ fn bench_khot_verify(c: &mut Criterion) {
 
                 // Make k-hot proof
                 let mut prover_transcript = Transcript::new(b"KHotBenchmark");
-                KHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input, k)
-                    .unwrap()
+                KHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input, k).unwrap()
             };
 
             // Verify kshuffle proof
@@ -231,7 +224,7 @@ fn bench_khot_verify(c: &mut Criterion) {
                         &bp_gens,
                         &mut verifier_transcript,
                         &input_commitments,
-                        1
+                        1,
                     )
                     .unwrap();
             })

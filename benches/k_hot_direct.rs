@@ -3,11 +3,6 @@
 extern crate criterion;
 use criterion::Criterion;
 
-use rand;
-use rand::Rng;
-
-use curve25519_dalek::scalar::Scalar;
-
 use merlin::Transcript;
 
 use bulletproofs::KHotProof;

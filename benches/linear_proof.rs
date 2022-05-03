@@ -30,7 +30,7 @@ fn create_linear_proof_helper(c: &mut Criterion) {
             let bp_gens = BulletproofGens::new(*n, 1);
             // Calls `.G()` on generators, which should be a pub(crate) function only.
             // For now, make that function public so it can be accessed from benches.
-            // We can't simply use bp_gens directly because we don't need the H generators.
+            // We don't want to use bp_gens directly because we don't need the H generators.
             let G: Vec<RistrettoPoint> = bp_gens.share(0).G(*n).cloned().collect();
 
             let pedersen_gens = PedersenGens::default();
@@ -121,7 +121,7 @@ fn linear_verify(c: &mut Criterion) {
 
             // Generate the proof in its own scope to prevent reuse of
             // prover variables by the verifier
-            let proof = {
+            let (proof, C) = {
                 // a and b are the vectors for which we want to prove c = <a,b>
                 let a: Vec<_> = (0..*n).map(|_| Scalar::random(&mut rng)).collect();
 
@@ -140,7 +140,7 @@ fn linear_verify(c: &mut Criterion) {
                     )
                     .compress();
 
-                LinearProof::create(
+                let proof = LinearProof::create(
                     &mut transcript,
                     &mut rng,
                     &C,
@@ -150,7 +150,9 @@ fn linear_verify(c: &mut Criterion) {
                     G.clone(),
                     &F,
                     &B,
-                )
+                );
+
+                (proof, C)
             };
 
             // Verify linear proof
@@ -160,13 +162,13 @@ fn linear_verify(c: &mut Criterion) {
                     .verify(
                         *n,
                         &mut verifier_transcript,
+                        &C,
                         &G,
                         &F,
                         &B,
                         b.clone(),
                     )
-                    // Not unwrapping for now because verification still fails
-                    // .unwrap();
+                    .unwrap();
             });
         },
         TEST_SIZES,
@@ -181,6 +183,5 @@ criterion_group! {
     targets =
     linear_verify,
 }
-
 
 criterion_main!(create_linear_proof, verify_linear_proof);

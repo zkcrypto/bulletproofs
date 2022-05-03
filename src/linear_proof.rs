@@ -142,13 +142,19 @@ impl LinearProof {
             r = r + x_j * s_j + x_j_inv * t_j;
         }
 
-        let s_star = Scalar::random(rng);
-        let t_star = Scalar::random(rng);
+        // let s_star = Scalar::random(rng);
+        // let t_star = Scalar::random(rng);
+        // Setting randomness to zero for debugging. TODO: set back
+        let s_star = Scalar::zero();
+        let t_star = Scalar::zero();
         let S = (t_star * B + s_star * b[0] * F + s_star * G[0]).compress();
         transcript.append_point(b"S", &S);
         let x_star = transcript.challenge_scalar(b"x_star");
-        let a_star = s_star * x_star * a[0];
-        let r_star = t_star + s_star * r;
+        // Setting x_star to one for debugging. TODO: set back
+        let a_star = a[0];
+        let r_star = t_star + r;
+        // let a_star = s_star * x_star * a[0];
+        // let r_star = t_star + x_star * r;
 
         // println!("prover's b[0]: {:?}", b[0]);
         // println!("prover's base case G: {:?}", G[0]);
@@ -228,10 +234,10 @@ impl LinearProof {
             s.push(s[i - k] * x_lg_i);
         }
 
-        assert_eq!(s[1], challenges[challenges.len()-1]);
-        assert_eq!(s[2], challenges[challenges.len()-2]);
-        assert_eq!(s[3], challenges[challenges.len()-1] * challenges[challenges.len()-2]);
-        assert_eq!(s[n-1], all_inv.invert());
+        // assert_eq!(s[1], challenges[challenges.len()-1]);
+        // assert_eq!(s[2], challenges[challenges.len()-2]);
+        // assert_eq!(s[3], challenges[challenges.len()-1] * challenges[challenges.len()-2]);
+        // assert_eq!(s[n-1], all_inv.invert());
 
         Ok((challenges, challenges_inv, s, b[0]))
     }
@@ -247,6 +253,7 @@ impl LinearProof {
     ) -> Result<(), ProofError>
     {
         let (x_vec, x_inv_vec, s, b_0) = self.verification_scalars(n, transcript, b_vec)?;
+
         transcript.append_point(b"S", &self.S);
         let x_star = transcript.challenge_scalar(b"x_star");
 
@@ -278,6 +285,10 @@ impl LinearProof {
                 .chain(Rs.iter()),
         );
 
+        println!("L_R_factors: {:?}", L_R_factors);
+        println!("S: {:?}", S);
+        println!("r: {:?}", self.r);
+
         // x_factors = sum_{i=0}^{2^l-1} x<i> * G_i
         let _x_factors: RistrettoPoint = RistrettoPoint::vartime_multiscalar_mul(
             s.iter(),
@@ -285,7 +296,14 @@ impl LinearProof {
         );
         // println!("x_factors: {:?}", x_factors);
 
-        let expect_S = simple_factors - x_star * (C + L_R_factors) + self.a * self.G_0;
+        // println!("self.a in verifier: {:?}", self.a);
+        // println!("self.G_0 in verifier: {:?}", self.G_0);
+        println!("b_0 in verifier: {:?}", b_0);
+
+        // Setting x_star to one for debugging. TODO: set back
+        // Also removing L_R_factors for n=1 case. TODO: set back
+        let expect_S = simple_factors - C + self.a * self.G_0;
+        // let expect_S = simple_factors - x_star * (C + L_R_factors) + self.a * self.G_0;
 
         // println!("expect_S: {:?}", expect_S);
         // println!("S: {:?}", S);
@@ -437,9 +455,11 @@ impl LinearProof {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand_core::SeedableRng;
+    use rand_chacha::ChaChaRng;
 
     fn test_helper(n: usize) {
-        let mut rng = rand::thread_rng();
+        let mut rng = ChaChaRng::from_seed([24u8; 32]);
 
         use crate::generators::{BulletproofGens, PedersenGens};
         let bp_gens = BulletproofGens::new(n, 1);
@@ -453,27 +473,25 @@ mod tests {
         let a: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
         let b: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
 
+        println!("a: {:?}", a);
+        println!("b: {:?}", b);
+        println!("G_0: {:?}", G[0]);
+
         let mut prover_transcript = Transcript::new(b"linearprooftest");
 
         // C = <a, G> + r * B + <a, b> * F
         let r = Scalar::random(&mut rng);
+        println!("r: {:?}", r);
         let c = inner_product(&a, &b);
         let C = RistrettoPoint::vartime_multiscalar_mul(
                 a.iter()
                     .chain(iter::once(&r))
                     .chain(iter::once(&c)),
                 G.iter()
-                    .chain(iter::once(&B))
+                    .chain(Some(&B))
                     .chain(iter::once(&F)),
             )
             .compress();
-        // let C = RistrettoPoint::vartime_multiscalar_mul(
-        //         a.iter()
-        //             .chain(iter::once(&r)),
-        //         G.iter()
-        //             .chain(iter::once(&B)),
-        //     )
-        //     .compress();
 
         let proof = LinearProof::create(
             &mut prover_transcript,
@@ -500,6 +518,6 @@ mod tests {
 
     #[test]
     fn test_linear_proof() {
-        test_helper(4);
+        test_helper(1);
     }
 }

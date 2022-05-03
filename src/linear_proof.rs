@@ -12,13 +12,12 @@ use merlin::Transcript;
 use rand_core::{CryptoRng, RngCore};
 
 use crate::errors::ProofError;
-use crate::transcript::TranscriptProtocol;
 use crate::inner_product_proof::inner_product;
+use crate::transcript::TranscriptProtocol;
 
 /// A linear proof, which is an optimized version of a Bulletproofs inner-product proof
 ///
-/// Protocol: Section E.3 of https://eprint.iacr.org/2021/1397.pdf
-/// C++ reference implementation: https://github.com/shaih/cpp-lwevss
+/// Protocol: Section E.3 of [GHL'21](https://eprint.iacr.org/2021/1397.pdf)
 ///
 /// Prove that <a, b> = c where a is secret and b is public.
 #[derive(Clone, Debug)]
@@ -37,6 +36,7 @@ impl LinearProof {
     /// This proves that <a, b> = c where a is secret and b is public.
     ///
     /// The lengths of the vectors must all be the same, and must all be either 0 or a power of 2.
+    /// The proof is created with respect to the bases \\(G\\).
     pub fn create<T: RngCore + CryptoRng>(
         transcript: &mut Transcript,
         rng: &mut T,
@@ -58,7 +58,7 @@ impl LinearProof {
         let mut n = a_vec.len();
 
         // Create slices G, H, a, b backed by their respective
-        // vectors.  This lets us reslice as we compress the lengths
+        // vectors. This lets us reslice as we compress the lengths
         // of the vectors in the main loop below.
         let mut G = &mut G_vec[..];
         let mut a = &mut a_vec[..];
@@ -93,23 +93,15 @@ impl LinearProof {
 
             // L = a_L * G_R + s_j * B + c_L * F
             let L = RistrettoPoint::vartime_multiscalar_mul(
-                a_L.iter()
-                    .chain(iter::once(&s_j))
-                    .chain(iter::once(&c_L)),
-                G_R.iter()
-                    .chain(iter::once(B))
-                    .chain(iter::once(F)),
+                a_L.iter().chain(iter::once(&s_j)).chain(iter::once(&c_L)),
+                G_R.iter().chain(iter::once(B)).chain(iter::once(F)),
             )
             .compress();
 
             // R = a_R * G_L + t_j * B + c_R * F
             let R = RistrettoPoint::vartime_multiscalar_mul(
-                a_R.iter()
-                    .chain(iter::once(&t_j))
-                    .chain(iter::once(&c_R)),
-                G_L.iter()
-                    .chain(iter::once(B))
-                    .chain(iter::once(F)),
+                a_R.iter().chain(iter::once(&t_j)).chain(iter::once(&c_R)),
+                G_L.iter().chain(iter::once(B)).chain(iter::once(F)),
             )
             .compress();
 
@@ -123,7 +115,7 @@ impl LinearProof {
             let x_j_inv = x_j.invert();
 
             for i in 0..n {
-                // a_L = a_L + x_j_inv * a_R
+                // a_L = a_L + x_j^{-1} * a_R
                 a_L[i] = a_L[i] + x_j_inv * a_R[i];
                 // b_L = b_L + x_j * b_R
                 b_L[i] = b_L[i] + x_j * b_R[i];
@@ -139,13 +131,11 @@ impl LinearProof {
             r = r + x_j * s_j + x_j_inv * t_j;
         }
 
-        // let s_star = Scalar::random(rng);
-        // let t_star = Scalar::random(rng);
-        // Setting randomness to zero for debugging. TODO: set back
-        let s_star = Scalar::zero();
-        let t_star = Scalar::zero();
+        let s_star = Scalar::random(rng);
+        let t_star = Scalar::random(rng);
         let S = (t_star * B + s_star * b[0] * F + s_star * G[0]).compress();
         transcript.append_point(b"S", &S);
+
         let x_star = transcript.challenge_scalar(b"x_star");
         let a_star = s_star + x_star * a[0];
         let r_star = t_star + x_star * r;
@@ -168,8 +158,7 @@ impl LinearProof {
         F: &RistrettoPoint,
         B: &RistrettoPoint,
         b_vec: Vec<Scalar>,
-    ) -> Result<(), ProofError>
-    {
+    ) -> Result<(), ProofError> {
         transcript.innerproduct_domain_sep(n as u64);
         transcript.append_point(b"C", &C);
         let (x_vec, x_inv_vec, b_0) = self.verification_scalars(n, transcript, b_vec)?;
@@ -194,21 +183,19 @@ impl LinearProof {
             .map(|p| p.decompress().ok_or(ProofError::VerificationError))
             .collect::<Result<Vec<_>, _>>()?;
 
-        // L_R_factors = sum_{j=0}^{l-1} x_j^-1 * L_j + sum_{j=0}^{l-1} x_j * R_j
+        // L_R_factors = sum_{j=0}^{l-1} x_j * L_j + sum_{j=0}^{l-1} x_j^{-1} * R_j
+        //
+        // Note: in GHL'21 the verification equation is incorrect (as of 05/03/22), with x_j and x_j^{-1} reversed.
+        // (Incorrect paper equation: sum_{j=0}^{l-1} x_j^{-1} * L_j + sum_{j=0}^{l-1} x_j * R_j)
         let L_R_factors: RistrettoPoint = RistrettoPoint::vartime_multiscalar_mul(
-            x_vec.iter()
-                .chain(x_inv_vec.iter()),
-            Ls.iter()
-                .chain(Rs.iter()),
+            x_vec.iter().chain(x_inv_vec.iter()),
+            Ls.iter().chain(Rs.iter()),
         );
 
         // This is an optimized way to compute the base case G (G_0 in the paper):
-        // G_0 = sum_{i=0}^{2^l-1} x<i> * G_i
+        // G_0 = sum_{i=0}^{2^{l-1}} x<i> * G_i
         let s = self.subset_product(n, x_vec);
-        let G_0: RistrettoPoint = RistrettoPoint::vartime_multiscalar_mul(
-            s.iter(),
-            G.iter()
-        );
+        let G_0: RistrettoPoint = RistrettoPoint::vartime_multiscalar_mul(s.iter(), G.iter());
 
         let S = self.S.decompress().ok_or(ProofError::VerificationError)?;
         let C = C.decompress().ok_or(ProofError::VerificationError)?;
@@ -222,10 +209,10 @@ impl LinearProof {
         }
     }
 
-
-    /// Computes vectors of challenge scalars \\([x\_{i}]\\), \\([x\_{i}^{-1}]\\), \\([s\_{i}]\\)
+    /// Computes the vector of challenge scalars \\([x\_{i}]\\), and its inverse \\([x\_{i}^{-1}]\\)
     /// for combined multiscalar multiplication in a parent protocol.
     /// Also computes \\(b_0\\) which is the base case for public vector \\(b\\).
+    ///
     /// The verifier must provide the input length \\(n\\) explicitly to avoid unbounded allocation.
     pub(crate) fn verification_scalars(
         &self,
@@ -268,18 +255,14 @@ impl LinearProof {
         Ok((challenges, challenges_inv, b[0]))
     }
 
-    /// Compute the subset-products of `x_j`'s inductively:
-    /// for i = 1..n, s_i = product_(j=1^{log_2(n)}) x_j ^ b(i,j)
-    /// where b(i,j) = 1 if the jth bit of (i-1) is 1, and 0 otherwise.
-    /// In GHL'21 this is referred to as the subset-product `x<i>`.
+    /// Compute the subset-products of \\(x_j\\) inductively:
+    /// for i = 1..n, \\(s_i = product_(j=1^{log_2(n)}) x_j ^ b(i,j)\\)
+    /// where \\(b(i,j)\\) = 1 if the jth bit of (i-1) is 1, and 0 otherwise.
+    /// In GHL'21 this is referred to as the subset-product \\(x<i>\\).
     ///
-    /// Note that this is different from the Bulletproofs `s` generation,
-    /// where b(i, j) = 1 if the jth bit of (i-1) is 1, and -1 otherwise.
-    fn subset_product(
-        &self,
-        n: usize,
-        challenges: Vec<Scalar>,
-    ) -> Vec<Scalar> {
+    /// Note that this is different from the Bulletproofs \\(s_i\\) generation,
+    /// where \\(b(i, j)\\) = 1 if the jth bit of (i-1) is 1, and -1 otherwise.
+    fn subset_product(&self, n: usize, challenges: Vec<Scalar>) -> Vec<Scalar> {
         let lg_n = self.L_vec.len();
 
         let mut s = Vec::with_capacity(n);
@@ -300,8 +283,8 @@ impl LinearProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand_core::SeedableRng;
     use rand_chacha::ChaChaRng;
+    use rand_core::SeedableRng;
 
     fn test_helper(n: usize) {
         let mut rng = ChaChaRng::from_seed([24u8; 32]);
@@ -325,14 +308,10 @@ mod tests {
         let r = Scalar::random(&mut rng);
         let c = inner_product(&a, &b);
         let C = RistrettoPoint::vartime_multiscalar_mul(
-                a.iter()
-                    .chain(iter::once(&r))
-                    .chain(iter::once(&c)),
-                G.iter()
-                    .chain(Some(&B))
-                    .chain(iter::once(&F)),
-            )
-            .compress();
+            a.iter().chain(iter::once(&r)).chain(iter::once(&c)),
+            G.iter().chain(Some(&B)).chain(iter::once(&F)),
+        )
+        .compress();
 
         let proof = LinearProof::create(
             &mut prover_transcript,
@@ -347,15 +326,9 @@ mod tests {
         );
 
         let mut verifier_transcript = Transcript::new(b"linearprooftest");
-        assert!(proof.verify(
-            n,
-            &mut verifier_transcript,
-            &C,
-            &G,
-            &F,
-            &B,
-            b,
-        ).is_ok());
+        assert!(proof
+            .verify(n, &mut verifier_transcript, &C, &G, &F, &B, b,)
+            .is_ok());
     }
 
     #[test]

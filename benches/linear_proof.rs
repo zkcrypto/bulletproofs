@@ -19,7 +19,9 @@ use curve25519_dalek::traits::VartimeMultiscalarMul;
 use merlin::Transcript;
 
 /// Different linear proof vector lengths to try
-static TEST_SIZES:  [usize; 15] = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576];
+static TEST_SIZES: [usize; 15] = [
+    64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576,
+];
 
 fn create_linear_proof_helper(c: &mut Criterion) {
     c.bench_function_over_inputs(
@@ -47,14 +49,10 @@ fn create_linear_proof_helper(c: &mut Criterion) {
             let r = Scalar::random(&mut rng);
             let c = inner_product(&a, &b);
             let C = RistrettoPoint::vartime_multiscalar_mul(
-                    a.iter()
-                        .chain(iter::once(&r))
-                        .chain(iter::once(&c)),
-                    G.iter()
-                        .chain(iter::once(&B))
-                        .chain(iter::once(&F)),
-                )
-                .compress();
+                a.iter().chain(iter::once(&r)).chain(iter::once(&c)),
+                G.iter().chain(iter::once(&B)).chain(iter::once(&F)),
+            )
+            .compress();
 
             // Make linear proof
             bench.iter(|| {
@@ -101,7 +99,6 @@ criterion_group! {
     create_linear_proof_helper,
 }
 
-
 fn linear_verify(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "linear proof verification",
@@ -131,14 +128,10 @@ fn linear_verify(c: &mut Criterion) {
                 let r = Scalar::random(&mut rng);
                 let c = inner_product(&a, &b);
                 let C = RistrettoPoint::vartime_multiscalar_mul(
-                        a.iter()
-                            .chain(iter::once(&r))
-                            .chain(iter::once(&c)),
-                        G.iter()
-                            .chain(iter::once(&B))
-                            .chain(iter::once(&F)),
-                    )
-                    .compress();
+                    a.iter().chain(iter::once(&r)).chain(iter::once(&c)),
+                    G.iter().chain(iter::once(&B)).chain(iter::once(&F)),
+                )
+                .compress();
 
                 let proof = LinearProof::create(
                     &mut transcript,
@@ -159,15 +152,7 @@ fn linear_verify(c: &mut Criterion) {
             bench.iter(|| {
                 let mut verifier_transcript = Transcript::new(b"LinearProofBenchmark");
                 proof
-                    .verify(
-                        *n,
-                        &mut verifier_transcript,
-                        &C,
-                        &G,
-                        &F,
-                        &B,
-                        b.clone(),
-                    )
+                    .verify(*n, &mut verifier_transcript, &C, &G, &F, &B, b.clone())
                     .unwrap();
             });
         },

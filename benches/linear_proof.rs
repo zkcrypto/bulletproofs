@@ -41,7 +41,7 @@ fn create_linear_proof_helper(c: &mut Criterion) {
             let a: Vec<_> = (0..*n).map(|_| Scalar::random(&mut rng)).collect();
             let b: Vec<_> = (0..*n).map(|_| Scalar::random(&mut rng)).collect();
 
-            let mut transcript = Transcript::new(b"linearprooftest");
+            let mut transcript = Transcript::new(b"LinearProofBenchmark");
 
             // C = <a, G> + r * B + <a, b> * F
             let r = Scalar::random(&mut rng);
@@ -56,7 +56,7 @@ fn create_linear_proof_helper(c: &mut Criterion) {
                 )
                 .compress();
 
-            // Make k-hot proof
+            // Make linear proof
             bench.iter(|| {
                 LinearProof::create(
                     &mut transcript,
@@ -101,61 +101,86 @@ criterion_group! {
     create_linear_proof_helper,
 }
 
-/*
-fn linear_verify(c: &mut Criterion) {
-    // Construct Bulletproof generators externally
-    let pc_gens = PedersenGens::default();
-    let bp_gens = BulletproofGens::new(2 * MAX_SHUFFLE_SIZE, 1);
 
+fn linear_verify(c: &mut Criterion) {
     c.bench_function_over_inputs(
-        "k-hot proof verification",
-        move |b, l| {
+        "linear proof verification",
+        move |bench, n| {
+            let bp_gens = BulletproofGens::new(*n, 1);
+            let mut rng = rand::thread_rng();
+
+            // Calls `.G()` on generators, which should be a pub(crate) function only.
+            // For now, make that function public so it can be accessed from benches.
+            // We can't simply use bp_gens directly because we don't need the H generators.
+            let G: Vec<RistrettoPoint> = bp_gens.share(0).G(*n).cloned().collect();
+            let pedersen_gens = PedersenGens::default();
+            let F = pedersen_gens.B;
+            let B = pedersen_gens.B_blinding;
+
+            let b: Vec<_> = (0..*n).map(|_| Scalar::random(&mut rng)).collect();
+
             // Generate the proof in its own scope to prevent reuse of
             // prover variables by the verifier
-            let (proof, input_commitments) = {
-                // Currently just proving k=1, aka one-hot vector.
-                let k = 1;
-                // Generate input to prove k-hot
-                let mut input: Vec<u64> = vec![0; *l];
-                use crate::rand::Rng;
-                let mut rng = rand::thread_rng();
-                for _ in 0..k {
-                    let hot_index = rng.gen_range(0..*l);
-                    input[hot_index] = 1;
-                }
+            let proof = {
+                // a and b are the vectors for which we want to prove c = <a,b>
+                let a: Vec<_> = (0..*n).map(|_| Scalar::random(&mut rng)).collect();
 
-                // Make k-hot proof
-                let mut prover_transcript = Transcript::new(b"KHotBenchmark");
-                KHotProof::prove(&pc_gens, &bp_gens, &mut prover_transcript, input, k)
-                    .unwrap()
+                let mut transcript = Transcript::new(b"LinearProofBenchmark");
+
+                // C = <a, G> + r * B + <a, b> * F
+                let r = Scalar::random(&mut rng);
+                let c = inner_product(&a, &b);
+                let C = RistrettoPoint::vartime_multiscalar_mul(
+                        a.iter()
+                            .chain(iter::once(&r))
+                            .chain(iter::once(&c)),
+                        G.iter()
+                            .chain(iter::once(&B))
+                            .chain(iter::once(&F)),
+                    )
+                    .compress();
+
+                LinearProof::create(
+                    &mut transcript,
+                    &mut rng,
+                    &C,
+                    r,
+                    a.clone(),
+                    b.clone(),
+                    G.clone(),
+                    &F,
+                    &B,
+                )
             };
 
-            // Verify kshuffle proof
-            b.iter(|| {
-                let mut verifier_transcript = Transcript::new(b"KHotBenchmark");
+            // Verify linear proof
+            bench.iter(|| {
+                let mut verifier_transcript = Transcript::new(b"LinearProofBenchmark");
                 proof
                     .verify(
-                        &pc_gens,
-                        &bp_gens,
+                        *n,
                         &mut verifier_transcript,
-                        &input_commitments,
-                        1
+                        &G,
+                        &F,
+                        &B,
+                        b.clone(),
                     )
-                    .unwrap();
-            })
+                    // Not unwrapping for now because verification still fails
+                    // .unwrap();
+            });
         },
         TEST_SIZES,
     );
 }
 
 criterion_group! {
-    name = khot_verify;
+    name = verify_linear_proof;
     // Lower the sample size to run faster; larger shuffle sizes are
     // long so we're not microbenchmarking anyways.
     config = Criterion::default().sample_size(10);
     targets =
-    bench_khot_verify,
+    linear_verify,
 }
-*/
 
-criterion_main!(create_linear_proof);
+
+criterion_main!(create_linear_proof, verify_linear_proof);

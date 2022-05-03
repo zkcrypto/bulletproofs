@@ -15,8 +15,7 @@ use crate::errors::ProofError;
 use crate::inner_product_proof::inner_product;
 use crate::transcript::TranscriptProtocol;
 
-/// A linear proof, which is an optimized version of a Bulletproofs inner-product proof
-///
+/// A linear proof, which is an "lightweight" version of a Bulletproofs inner-product proof
 /// Protocol: Section E.3 of [GHL'21](https://eprint.iacr.org/2021/1397.pdf)
 ///
 /// Prove that <a, b> = c where a is secret and b is public.
@@ -24,10 +23,11 @@ use crate::transcript::TranscriptProtocol;
 pub struct LinearProof {
     pub(crate) L_vec: Vec<CompressedRistretto>,
     pub(crate) R_vec: Vec<CompressedRistretto>,
-    /// The last proof element
+    /// A commitment to the base case elements
     pub(crate) S: CompressedRistretto,
-    /// The last scalars
+    /// a_star, corresponding to the base case `a`
     pub(crate) a: Scalar,
+    /// r_star, corresponding to the base case `r`
     pub(crate) r: Scalar,
 }
 
@@ -44,9 +44,9 @@ impl LinearProof {
         C: &CompressedRistretto,
         // Blinding factor for C
         mut r: Scalar,
-        // Secret scalar vector
+        // Secret scalar vector a
         mut a_vec: Vec<Scalar>,
-        // Common input
+        // Public scalar vector b
         mut b_vec: Vec<Scalar>,
         // Generator vector
         mut G_vec: Vec<RistrettoPoint>,
@@ -153,10 +153,15 @@ impl LinearProof {
         &self,
         n: usize,
         transcript: &mut Transcript,
+        // Commitment to witness
         C: &CompressedRistretto,
+        // Generator vector
         G: &[RistrettoPoint],
+        // Pedersen generator F, for committing to the secret value
         F: &RistrettoPoint,
+        // Pedersen generator B, for committing to the blinding value
         B: &RistrettoPoint,
+        // Public scalar vector b
         b_vec: Vec<Scalar>,
     ) -> Result<(), ProofError> {
         transcript.innerproduct_domain_sep(n as u64);
@@ -165,9 +170,6 @@ impl LinearProof {
 
         transcript.append_point(b"S", &self.S);
         let x_star = transcript.challenge_scalar(b"x_star");
-
-        // r_star * B + a_star * b_0 * F
-        let simple_factors: RistrettoPoint = self.r * B + self.a * b_0 * F;
 
         // Decompress the compressed L values
         let Ls = self
@@ -183,24 +185,31 @@ impl LinearProof {
             .map(|p| p.decompress().ok_or(ProofError::VerificationError))
             .collect::<Result<Vec<_>, _>>()?;
 
-        // L_R_factors = sum_{j=0}^{l-1} x_j * L_j + sum_{j=0}^{l-1} x_j^{-1} * R_j
+        // L_R_factors = sum_{j=0}^{l-1} (x_j * L_j + x_j^{-1} * R_j)
         //
         // Note: in GHL'21 the verification equation is incorrect (as of 05/03/22), with x_j and x_j^{-1} reversed.
-        // (Incorrect paper equation: sum_{j=0}^{l-1} x_j^{-1} * L_j + sum_{j=0}^{l-1} x_j * R_j)
+        // (Incorrect paper equation: sum_{j=0}^{l-1} (x_j^{-1} * L_j + x_j * R_j) )
         let L_R_factors: RistrettoPoint = RistrettoPoint::vartime_multiscalar_mul(
             x_vec.iter().chain(x_inv_vec.iter()),
             Ls.iter().chain(Rs.iter()),
         );
 
         // This is an optimized way to compute the base case G (G_0 in the paper):
-        // G_0 = sum_{i=0}^{2^{l-1}} x<i> * G_i
+        // G_0 = sum_{i=0}^{2^{l-1}} (x<i> * G_i)
         let s = self.subset_product(n, x_vec);
         let G_0: RistrettoPoint = RistrettoPoint::vartime_multiscalar_mul(s.iter(), G.iter());
 
         let S = self.S.decompress().ok_or(ProofError::VerificationError)?;
         let C = C.decompress().ok_or(ProofError::VerificationError)?;
 
-        let expect_S = simple_factors - x_star * (C + L_R_factors) + self.a * G_0;
+        // This matches the verification equation:
+        // S == r_star * B + a_star * b_0 * F
+        //      - x_star * (C + sum_{j=0}^{l-1} (x_j * L_j + x_j^{-1} * R_j))
+        //      + a_star * sum_{i=0}^{2^{l-1}} (x<i> * G_i)
+        //
+        // Where L_R_factors = sum_{j=0}^{l-1} (x_j * L_j + x_j^{-1} * R_j)
+        // and G_0 = sum_{i=0}^{2^{l-1}} (x<i> * G_i)
+        let expect_S = self.r * B + self.a * b_0 * F - x_star * (C + L_R_factors) + self.a * G_0;
 
         if expect_S == S {
             Ok(())

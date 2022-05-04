@@ -287,16 +287,106 @@ impl LinearProof {
 
         s
     }
+
+    /// Returns the size in bytes required to serialize the linear proof.
+    ///
+    /// For vectors of length `n` the proof size is
+    /// \\(32 \cdot (2\lg n+3)\\) bytes.
+    pub fn serialized_size(&self) -> usize {
+        (self.L_vec.len() * 2 + 3) * 32
+    }
+
+    /// Serializes the proof into a byte array of \\(2n+3\\) 32-byte elements.
+    /// The layout of the linear proof is:
+    /// * \\(n\\) pairs of compressed Ristretto points \\(L_0, R_0 \dots, L_{n-1}, R_{n-1}\\),
+    /// * one compressed Ristretto point \\(S\\),
+    /// * two scalars \\(a, r\\).
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(self.serialized_size());
+        for (l, r) in self.L_vec.iter().zip(self.R_vec.iter()) {
+            buf.extend_from_slice(l.as_bytes());
+            buf.extend_from_slice(r.as_bytes());
+        }
+        buf.extend_from_slice(self.S.as_bytes());
+        buf.extend_from_slice(self.a.as_bytes());
+        buf.extend_from_slice(self.r.as_bytes());
+        buf
+    }
+
+    /// Converts the proof into a byte iterator over serialized view of the proof.
+    /// The layout of the inner product proof is:
+    /// * \\(n\\) pairs of compressed Ristretto points \\(L_0, R_0 \dots, L_{n-1}, R_{n-1}\\),
+    /// * one compressed Ristretto point \\(S\\),
+    /// * two scalars \\(a, r\\).
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn to_bytes_iter(&self) -> impl Iterator<Item = u8> + '_ {
+        self.L_vec
+            .iter()
+            .zip(self.R_vec.iter())
+            .flat_map(|(l, r)| l.as_bytes().iter().chain(r.as_bytes()))
+            .chain(self.S.as_bytes())
+            .chain(self.a.as_bytes())
+            .chain(self.r.as_bytes())
+            .copied()
+    }
+
+    /// Deserializes the proof from a byte slice.
+    /// Returns an error in the following cases:
+    /// * the slice does not have \\(2n+3\\) 32-byte elements,
+    /// * \\(n\\) is larger or equal to 32 (proof is too big),
+    /// * any of \\(2n + 1\\) points are not valid compressed Ristretto points,
+    /// * any of 2 scalars are not canonical scalars modulo Ristretto group order.
+    pub fn from_bytes(slice: &[u8]) -> Result<LinearProof, ProofError> {
+        let b = slice.len();
+        if b % 32 != 0 {
+            return Err(ProofError::FormatError);
+        }
+        let num_elements = b / 32;
+        if num_elements < 3 {
+            return Err(ProofError::FormatError);
+        }
+        if (num_elements - 3) % 2 != 0 {
+            return Err(ProofError::FormatError);
+        }
+        let lg_n = (num_elements - 3) / 2;
+        if lg_n >= 32 {
+            return Err(ProofError::FormatError);
+        }
+
+        use crate::util::read32;
+
+        let mut L_vec: Vec<CompressedRistretto> = Vec::with_capacity(lg_n);
+        let mut R_vec: Vec<CompressedRistretto> = Vec::with_capacity(lg_n);
+        for i in 0..lg_n {
+            let pos = 2 * i * 32;
+            L_vec.push(CompressedRistretto(read32(&slice[pos..])));
+            R_vec.push(CompressedRistretto(read32(&slice[pos + 32..])));
+        }
+
+        let pos = 2 * lg_n * 32;
+        let S = CompressedRistretto(read32(&slice[pos..]));
+        let a = Scalar::from_canonical_bytes(read32(&slice[pos + 32..]))
+            .ok_or(ProofError::FormatError)?;
+        let r = Scalar::from_canonical_bytes(read32(&slice[pos + 64..]))
+            .ok_or(ProofError::FormatError)?;
+
+        Ok(LinearProof {
+            L_vec,
+            R_vec,
+            S,
+            a,
+            r,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand_chacha::ChaChaRng;
-    use rand_core::SeedableRng;
 
     fn test_helper(n: usize) {
-        let mut rng = ChaChaRng::from_seed([24u8; 32]);
+        let mut rng = rand::thread_rng();
 
         use crate::generators::{BulletproofGens, PedersenGens};
         let bp_gens = BulletproofGens::new(n, 1);
@@ -336,7 +426,17 @@ mod tests {
 
         let mut verifier_transcript = Transcript::new(b"linearprooftest");
         assert!(proof
-            .verify(n, &mut verifier_transcript, &C, &G, &F, &B, b,)
+            .verify(n, &mut verifier_transcript, &C, &G, &F, &B, b.clone())
+            .is_ok());
+
+        // Test serialization and deserialization
+        let serialized_proof = proof.to_bytes();
+        assert_eq!(proof.serialized_size(), serialized_proof.len());
+
+        let deserialized_proof = LinearProof::from_bytes(&serialized_proof).unwrap();
+        let mut serde_verifier_transcript = Transcript::new(b"linearprooftest");
+        assert!(deserialized_proof
+            .verify(n, &mut serde_verifier_transcript, &C, &G, &F, &B, b)
             .is_ok());
     }
 

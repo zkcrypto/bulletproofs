@@ -19,9 +19,7 @@ use curve25519_dalek::traits::VartimeMultiscalarMul;
 use merlin::Transcript;
 
 /// Different linear proof vector lengths to try
-static TEST_SIZES: [usize; 15] = [
-    64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576,
-];
+static TEST_SIZES: [usize; 5] = [64, 128, 256, 512, 1024];
 
 fn create_linear_proof_helper(c: &mut Criterion) {
     c.bench_function_over_inputs(

@@ -98,8 +98,8 @@ The following example shows how to create and verify a 32-bit rangeproof.
 # extern crate rand;
 # use rand::thread_rng;
 #
-# extern crate curve25519_dalek;
-# use curve25519_dalek::scalar::Scalar;
+# extern crate curve25519_dalek_ng;
+# use curve25519_dalek_ng::scalar::Scalar;
 #
 # extern crate merlin;
 # use merlin::Transcript;

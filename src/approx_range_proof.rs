@@ -13,12 +13,24 @@ use rand::thread_rng;
 #[derive(Clone, Debug)]
 pub struct ApproxRangeProof {
     pub R_x_proofs: Vec<LinearProof>,
+    pub R_x_commits: Vec<CompressedRistretto>,
     pub y_mu_proofs: Vec<LinearProof>,
+    pub y_mu_commits: Vec<CompressedRistretto>,
     pub x_commit: CompressedRistretto,
     pub y_commit: CompressedRistretto,
     pub R: Vec<Vec<i64>>,
     pub z: Vec<i64>,
 }
+
+// - first connect all of the vectors by concatenating and multiplying by challenge
+// - linear proof for <R, x> = z' where z' is a vector pedersen commitment
+// - quadratic proof for z' + <y_i, mu_j> = z (a little confused about how to do this)
+// - create aggregated linear and quadratic proofs for all entries in [0, L)
+// - When we have aggregated rows / proofs, we can just use the single "uber-z"
+
+// First step:
+// prove aggregated <R, x> = z' with the "uber-z' commitment"
+
 
 impl ApproxRangeProof {
     pub fn create(
@@ -82,6 +94,8 @@ impl ApproxRangeProof {
 
             transcript_i.append_point(b"y", &y_commit);
 
+            // Make an RNG from the transcript 
+
             // TODO: have R_i be derived from fiat-shamir (with the transcript and i value?)
             // Sample R_i, the centered binomial distribution over {0, +/- 1} with p=0.5.
             // ie D(0) = 1/2, D(1) = 1/4, D(-1) = -1/4, R_i sampled from D.
@@ -118,7 +132,9 @@ impl ApproxRangeProof {
             if (R_x_max <= t / 2 * lambda) & (z_max <= t / 2) {
                 println!("success!");
                 let mut R_x_proofs = vec![];
+                let mut R_x_commits = vec![];
                 let mut y_mu_proofs = vec![];
+                let mut y_mu_commits = vec![];
 
                 for j in 0..L {
                     // Make proof of <R_i[j], x> = R_x
@@ -136,7 +152,10 @@ impl ApproxRangeProof {
                             .chain(iter::once(&pc_gens.B)),
                     )
                     .compress();
+                    R_x_commits.push(R_x_commit);
 
+                    // end goal = have a LinearProof accumuluator (and quadratic accumulator)
+                    // and then call finalize to create one big proof.
                     let R_x_proof = LinearProof::create(
                         &mut transcript,
                         &mut rng,
@@ -169,6 +188,7 @@ impl ApproxRangeProof {
                             .chain(iter::once(&pc_gens.B)),
                     )
                     .compress();
+                    y_mu_commits.push(y_mu_commit);
 
                     let y_mu_proof = LinearProof::create(
                         &mut transcript,
@@ -188,7 +208,7 @@ impl ApproxRangeProof {
                     // (Open the commitment, since z is public?)
 
                     // Return an ApproxRangeProof
-                    return Ok(ApproxRangeProof(R_x_proofs, y_mu_proofs, x_commit, y_commit, R, z));
+                    return Ok(ApproxRangeProof(R_x_proofs, R_x_commits, y_mu_proofs, y_mu_commits, x_commit, y_commit, R, z));
                 }
             }
         }
@@ -216,6 +236,10 @@ impl ApproxRangeProof {
         let bp_gens = bp_generators.share(0);
 
         // Check that ||z_i||_inf maximum) is less than t * gamma / 2
-        // let z_max = 
+        let z_max = self.z.iter().max();
+        if z_max >= t * gamma / 2 {
+            return Err(ProofError::VerificationError);
+        }
+
     }
 }

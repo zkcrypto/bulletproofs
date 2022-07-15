@@ -24,7 +24,7 @@ mod notes {
     mod r1cs_proof {}
 }
 
-mod approx_range_proof;
+// mod approx_range_proof;
 mod errors;
 mod generators;
 mod inner_product_proof;

@@ -9,11 +9,13 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::VartimeMultiscalarMul;
 use merlin::Transcript;
+
 use rand_core::{CryptoRng, RngCore};
 
 use crate::errors::ProofError;
 use crate::inner_product_proof::inner_product;
 use crate::transcript::TranscriptProtocol;
+
 
 /// A linear proof, which is an "lightweight" version of a Bulletproofs inner-product proof
 /// Protocol: Section E.3 of [GHL'21](https://eprint.iacr.org/2021/1397.pdf)
@@ -286,6 +288,110 @@ impl LinearProof {
         }
 
         s
+    }
+}
+
+pub struct LinearProofAccumulator {
+    // Secret scalar vectors a
+    pub(crate) a_vec: Vec<Vec<Scalar>>,
+    // Public scalar vectors b
+    pub(crate) b_vec: Vec<Vec<Scalar>>,
+}
+
+impl LinearProofAccumulator {
+    pub fn create() -> LinearProofAccumulator {
+        LinearProofAccumulator {
+            a_vec: vec![],
+            b_vec: vec![],
+        }
+    }
+
+    pub fn append(
+        &mut self,      
+        // Secret scalar vector a
+        a_vec: Vec<Scalar>,
+        // Public scalar vector b
+        b_vec: Vec<Scalar>,
+    ) -> Result<(), ProofError> {
+        if a_vec.len() != b_vec.len() {
+            return Err(ProofError::CreationError);
+        }
+        self.a_vec.push(a_vec);
+        self.b_vec.push(b_vec);
+        Ok(())
+    }
+
+    /// Input: 
+    /// - the randomness needed to combine the vectors and create proofs
+    /// - generators
+    /// Output:
+    /// - One aggregated Linear Proof for the accumulated vectors
+    ///
+    /// Question: could/should we include this as an output? Or is `c` assumed to be private?
+    /// - A vector of scalars that represents the output `<a,b> = c` for each set of vectors
+    ///   that was used in the accumulated proof. This is required for the secure generation
+    ///   of the challenge scalar `x` using the Fiat-Shamir protocol.
+    pub fn finalize<T: RngCore + CryptoRng>(
+        &self,
+        transcript: &mut Transcript,
+        rng: &mut T,
+        // Generator vector
+        G: Vec<RistrettoPoint>,
+        // Pedersen generator F, for committing to the secret value
+        F: &RistrettoPoint,
+        // Pedersen generator B, for committing to the blinding value
+        B: &RistrettoPoint,
+    ) -> Result<LinearProof, ProofError> {
+        let n = self.a_vec.len();
+        if n != self.b_vec.len() {
+            return Err(ProofError::CreationError);
+        }
+        transcript.linearproof_domain_sep(n as u64);
+
+        // TODO(cathie): could/should we commit anything else to the transcript? E.g. `c = <a, b`?
+        // Get challenge scalar to combine the a_vec and b_vec vectors
+        let x = transcript.challenge_scalar(b"x");
+        let mut x_exp = Scalar::one();
+
+        let mut a: Vec<Scalar> = vec![];
+        let mut b: Vec<Scalar> = vec![];
+        for i in 0..n {
+            // Make sure the `a` and `b` vectors getting appended are the same length
+            let m = self.a_vec[i].len();
+            if m != self.b_vec[i].len() {
+                return Err(ProofError::CreationError);
+            }
+
+            // Multiply each entry by the proper power of x, and append to the combined vector
+            for j in 0..m {
+                a.push(self.a_vec[i][j] * x_exp);
+                b.push(self.b_vec[i][j] * x_exp);
+            }
+
+            // Raise x_exp to the next power of x
+            x_exp = x_exp * x;
+        }
+
+        // C = <a, G> + r * B + <a, b> * F
+        let r = Scalar::random(rng);
+        let c = inner_product(&a, &b);
+        let C = RistrettoPoint::vartime_multiscalar_mul(
+            a.iter().chain(iter::once(&r)).chain(iter::once(&c)),
+            G.iter().chain(Some(B)).chain(iter::once(F)),
+        )
+        .compress();
+
+        Ok(LinearProof::create(
+            transcript,
+            rng,
+            &C,
+            r,
+            a,
+            b.clone(),
+            G.clone(),
+            &F,
+            &B,
+        ))
     }
 }
 

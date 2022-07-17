@@ -471,16 +471,4 @@ mod tests {
     fn test_n_1024() {
         create_and_verify_helper(1024);
     }
-    #[test]
-    fn test_n_131072() {
-        create_and_verify_helper(131072);
-    }
-    #[test]
-    fn test_n_524288() {
-        create_and_verify_helper(1024);
-    }
-    #[test]
-    fn test_n_1048576() {
-        create_and_verify_helper(1048576);
-    }
 }

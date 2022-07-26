@@ -16,7 +16,6 @@ use crate::errors::ProofError;
 use crate::inner_product_proof::inner_product;
 use crate::transcript::TranscriptProtocol;
 
-
 /// A linear proof, which is an "lightweight" version of a Bulletproofs inner-product proof
 /// Protocol: Section E.3 of [GHL'21](https://eprint.iacr.org/2021/1397.pdf)
 ///
@@ -302,117 +301,6 @@ impl LinearProof {
     }
 }
 
-pub struct LinearProofAccumulator {
-    // Secret scalar vectors a
-    pub(crate) a_vec: Vec<Vec<Scalar>>,
-    // Public scalar vectors b
-    pub(crate) b_vec: Vec<Vec<Scalar>>,
-}
-
-impl LinearProofAccumulator {
-    pub fn create() -> LinearProofAccumulator {
-        LinearProofAccumulator {
-            a_vec: vec![],
-            b_vec: vec![],
-        }
-    }
-
-    pub fn append(
-        &mut self,      
-        // Secret scalar vector a
-        a_vec: Vec<Scalar>,
-        // Public scalar vector b
-        b_vec: Vec<Scalar>,
-    ) -> Result<(), ProofError> {
-        if a_vec.len() != b_vec.len() {
-            return Err(ProofError::CreationError);
-        }
-        self.a_vec.push(a_vec);
-        self.b_vec.push(b_vec);
-        Ok(())
-    }
-
-    /// Input: 
-    /// - the randomness needed to combine the vectors and create proofs
-    /// - generators
-    /// Output:
-    /// - One aggregated Linear Proof for the accumulated vectors
-    ///
-    /// Question: could/should we include this as an output? Or is `c` assumed to be private?
-    /// - A vector of scalars that represents the output `<a_i,b_i> = c_i` for each set of vectors
-    ///   that was used in the accumulated proof. This is required for the secure generation
-    ///   of the challenge scalar `x` using the Fiat-Shamir protocol.
-    pub fn finalize<T: RngCore + CryptoRng>(
-        &self,
-        transcript: &mut Transcript,
-        rng: &mut T,
-        // Generator vector
-        G: Vec<RistrettoPoint>,
-        // Pedersen generator F, for committing to the secret value
-        F: &RistrettoPoint,
-        // Pedersen generator B, for committing to the blinding value
-        B: &RistrettoPoint,
-    ) -> Result<(LinearProof, Vec<Scalar>, CompressedRistretto), ProofError> {
-        let n = self.a_vec.len();
-        if n != self.b_vec.len() {
-            return Err(ProofError::CreationError);
-        }
-
-        // Forking the transcript so the accumulator challenge doesn't have to be duplicated
-        // on the verification side. Note: this can be avoided, but at the expense of more work
-        // and complexity for the verifier, requiring a separate `verify_accumulated()` function.
-        let mut transcript_fork = transcript.clone();
-        transcript_fork.linearproof_domain_sep(n as u64);
-
-        // TODO(cathie): could/should we commit anything else to the transcript? E.g. `c_i = <a_i, b_i>`?
-        // Get challenge scalar to combine the a_vec and b_vec vectors
-        let x = transcript_fork.challenge_scalar(b"x");
-        let mut x_exp = Scalar::one();
-
-        let mut a: Vec<Scalar> = vec![];
-        let mut b: Vec<Scalar> = vec![];
-        for i in 0..n {
-            // Make sure the `a` and `b` vectors getting appended are the same length
-            let m = self.a_vec[i].len();
-            if m != self.b_vec[i].len() {
-                return Err(ProofError::CreationError);
-            }
-
-            // Multiply each entry by the proper power of x, and append to the combined vector
-            for j in 0..m {
-                a.push(self.a_vec[i][j] * x_exp);
-                b.push(self.b_vec[i][j] * x_exp);
-            }
-
-            // Raise x_exp to the next power of x
-            x_exp = x_exp * x;
-        }
-
-        // C = <a, G> + r * B + <a, b> * F
-        let r = Scalar::random(rng);
-        let c = inner_product(&a, &b);
-        let C = RistrettoPoint::vartime_multiscalar_mul(
-            a.iter().chain(iter::once(&r)).chain(iter::once(&c)),
-            G.iter().chain(Some(B)).chain(iter::once(F)),
-        )
-        .compress();
-
-        let linear_proof = LinearProof::create(
-            transcript,
-            rng,
-            &C,
-            r,
-            a,
-            b.clone(),
-            G.clone(),
-            &F,
-            &B,
-        );
-
-        Ok((linear_proof, b, C))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -482,72 +370,5 @@ mod tests {
     #[test]
     fn test_linear_proof_64() {
         test_helper(64);
-    }
-
-    // n is the number of vectors to aggregate,
-    // m is the length of each vector (all vectors will be the same length).
-    fn accumulator_test_helper(n: usize, m: usize) {
-        let mut rng = ChaChaRng::from_seed([24u8; 32]);
-
-        use crate::generators::{BulletproofGens, PedersenGens};
-        let bp_gens = BulletproofGens::new(n*m, 1);
-        let G: Vec<RistrettoPoint> = bp_gens.share(0).G(n*m).cloned().collect();
-
-        let pedersen_gens = PedersenGens::default();
-        let F = pedersen_gens.B;
-        let B = pedersen_gens.B_blinding;
-
-        let mut accumulator = LinearProofAccumulator::create();
-
-        for _ in 0..n {
-            // a_i and b_i are the vectors for which we want to prove c_i = <a_i,b_i>
-            // a_i is a private vector, b_i is a public vector
-            let a_i: Vec<_> = (0..m).map(|_| Scalar::random(&mut rng)).collect();
-            let b_i: Vec<_> = (0..m).map(|_| Scalar::random(&mut rng)).collect();
-            println!("a_i: {:?}", a_i);
-            println!("b_i: {:?}", b_i);
-            assert!(accumulator.append(a_i, b_i).is_ok());
-        }
-
-        let mut prover_transcript = Transcript::new(b"accumulated linear proof test");
-
-        let (proof, b, C) = accumulator.finalize(
-            &mut prover_transcript,
-            &mut rng,
-            G.clone(),
-            &F,
-            &B,
-        ).unwrap();
-        println!("b: {:?}", b);
-
-        let mut verifier_transcript = Transcript::new(b"accumulated linear proof test");
-        assert!(proof
-            .verify(n*m, &mut verifier_transcript, &C, &G, &F, &B, b)
-            .is_ok());
-    }
-
-    #[test]
-    fn test_accumulator_base() {
-        accumulator_test_helper(1, 1);
-    }
-
-    #[test]
-    fn test_accumulator_2_2() {
-        accumulator_test_helper(2, 2);
-    }
-
-    #[test]
-    fn test_accumulator_4_4() {
-        accumulator_test_helper(4, 4);
-    }
-
-    #[test]
-    fn test_accumulator_8_8() {
-        accumulator_test_helper(8, 8);
-    }
-
-    #[test]
-    fn test_accumulator_16_16() {
-        accumulator_test_helper(16, 16);
     }
 }

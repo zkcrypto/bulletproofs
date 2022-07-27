@@ -31,7 +31,6 @@ pub struct ApproxRangeProof {
 // First step:
 // prove aggregated <R, x> = z' with the "uber-z' commitment"
 
-
 impl ApproxRangeProof {
     pub fn create(
         transcript: &mut Transcript,
@@ -67,7 +66,15 @@ impl ApproxRangeProof {
 
         transcript.append_point(b"x", &x_commit);
 
+
+        // james: <\sum_j \alpha^j R[j], x> + <y, \sum_j \alpha^j \mu^j> = \sum_j \alpha^j z[j]
+
         let y_bounds = (t / 2 * (1 + 1 / lambda)) as i64;
+        // TODO(cathie): take in r commitments & openings to y? 
+        // Instead: run a loop where we create & commit to all y's
+        // pass thsoe commitments into transcript and derive R's from the transcript.
+        // actually just geenerate R's based on y values
+        // (generate y, commit, then R, then check, then repeat)
         let r_choices = [-1, 0, 1];
         let r_weights = [1, 2, 1];
         let r_dist = WeightedIndex::new(&r_weights).unwrap();
@@ -130,7 +137,6 @@ impl ApproxRangeProof {
             let R_x_max = R_times_x.iter().max();
             let z_max = z.iter().max();
             if (R_x_max <= t / 2 * lambda) & (z_max <= t / 2) {
-                println!("success!");
                 let mut R_x_proofs = vec![];
                 let mut R_x_commits = vec![];
                 let mut y_mu_proofs = vec![];

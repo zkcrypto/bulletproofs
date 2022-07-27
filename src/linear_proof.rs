@@ -141,8 +141,6 @@ impl LinearProof {
         let a_star = s_star + x_star * a[0];
         let r_star = t_star + x_star * r;
 
-        println!("prover's x_star: {:?}", x_star);
-
         LinearProof {
             L_vec,
             R_vec,
@@ -170,18 +168,13 @@ impl LinearProof {
         if n != b_vec.len() || n != G.len() {
             return Err(ProofError::VerificationError);
         }
-        println!("reached verification code");
         transcript.innerproduct_domain_sep(n as u64);
         transcript.append_point(b"C", &C);
 
-        println!("before verification scalars");
         let (x_vec, x_inv_vec, b_0) = self.verification_scalars(n, transcript, b_vec)?;
 
-        println!("got verification scalars");
         transcript.append_point(b"S", &self.S);
         let x_star = transcript.challenge_scalar(b"x_star");
-
-        println!("verifier's x_star: {:?}", x_star);
 
         // Decompress the compressed L values
         let Ls = self

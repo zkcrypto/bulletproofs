@@ -98,3 +98,7 @@ required-features = ["yoloproofs"]
 name = "linear_proof"
 harness = false
 required-features = ["yoloproofs"]
+
+[[bench]]
+name = "inner_product_proof"
+harness = false

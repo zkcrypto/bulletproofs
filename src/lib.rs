@@ -36,6 +36,7 @@ mod transcript;
 
 pub use crate::errors::ProofError;
 pub use crate::generators::{BulletproofGens, BulletproofGensShare, PedersenGens};
+pub use crate::inner_product_proof::InnerProductProof;
 pub use crate::k_hot_proof::KHotProof;
 pub use crate::linear_proof::LinearProof;
 pub use crate::range_proof::RangeProof;

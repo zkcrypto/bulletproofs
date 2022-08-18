@@ -25,6 +25,7 @@ mod notes {
 }
 
 // mod approx_range_proof;
+mod blinded_ipp;
 mod errors;
 mod generators;
 mod inner_product_proof;
@@ -34,6 +35,7 @@ mod range_proof;
 mod secagg_proof;
 mod transcript;
 
+pub use crate::blinded_ipp::BlindedInnerProductProof;
 pub use crate::errors::ProofError;
 pub use crate::generators::{BulletproofGens, BulletproofGensShare, PedersenGens};
 pub use crate::inner_product_proof::InnerProductProof;

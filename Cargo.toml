@@ -90,7 +90,7 @@ harness = false
 required-features = ["yoloproofs"]
 
 [[bench]]
-name = "blinded_ipp"
+name = "blinded_ipp_r1cs"
 harness = false
 required-features = ["yoloproofs"]
 
@@ -101,4 +101,8 @@ required-features = ["yoloproofs"]
 
 [[bench]]
 name = "inner_product_proof"
+harness = false
+
+[[bench]]
+name = "blinded_ipp"
 harness = false

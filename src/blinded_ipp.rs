@@ -16,7 +16,7 @@ use crate::errors::ProofError;
 use crate::transcript::TranscriptProtocol;
 
 #[derive(Clone, Debug)]
-pub struct InnerProductProof {
+pub struct BlindedInnerProductProof {
     pub(crate) L_vec: Vec<CompressedRistretto>,
     pub(crate) R_vec: Vec<CompressedRistretto>,
     pub(crate) a: Scalar,
@@ -26,7 +26,7 @@ pub struct InnerProductProof {
     pub(crate) delta_blinded: Scalar,
 }
 
-impl InnerProductProof {
+impl BlindedInnerProductProof {
     /// Create an inner-product proof.
     ///
     /// The proof is created with respect to the bases \\(G\\), \\(H'\\),
@@ -47,7 +47,7 @@ impl InnerProductProof {
         mut H_vec: Vec<RistrettoPoint>,
         mut a_vec: Vec<Scalar>,
         mut b_vec: Vec<Scalar>,
-    ) -> InnerProductProof {
+    ) -> BlindedInnerProductProof {
         // Create slices G, H, a, b backed by their respective
         // vectors.  This lets us reslice as we compress the lengths
         // of the vectors in the main loop below.
@@ -83,13 +83,12 @@ impl InnerProductProof {
         let z = transcript.challenge_scalar(b"z");
         // I'm using H[1] instead of h_prime for the purpose of benchmarking,
         // but really we would need a new generator.
-        let Q_prime : &RistrettoPoint = &(z * H[1]);
+        let Q_prime: &RistrettoPoint = &(z * H[1]);
         // Initialize delta to zero
         let mut delta: Scalar = Scalar::zero(); // Does this work? Just guessed it...
-        // Initialize rng (is this the right way to generate a random scalar known to prover? See below)
+                                                // Initialize rng (is this the right way to generate a random scalar known to prover? See below)
         let mut rng = rand::thread_rng();
         let no_zk = true;
-
 
         // If it's the first iteration, unroll the Hprime = H*y_inv scalar mults
         // into multiscalar muls, for performance.
@@ -105,8 +104,16 @@ impl InnerProductProof {
 
             // Sample delta_L and delta_R
             // These are random scalars known to the prover only (How do I generate them? See above)
-            let delta_L = if no_zk { Scalar::zero() } else { Scalar::random(&mut rng)};
-            let delta_R = if no_zk { Scalar::zero() } else { Scalar::random(&mut rng)};
+            let delta_L = if no_zk {
+                Scalar::zero()
+            } else {
+                Scalar::random(&mut rng)
+            };
+            let delta_R = if no_zk {
+                Scalar::zero()
+            } else {
+                Scalar::random(&mut rng)
+            };
 
             let L = RistrettoPoint::vartime_multiscalar_mul(
                 a_L.iter()
@@ -117,8 +124,12 @@ impl InnerProductProof {
                             .zip(H_factors[0..n].into_iter())
                             .map(|(b_R_i, h)| b_R_i * h),
                     )
-                    .chain(iter::once(c_L)).chain(iter::once(delta_L)),
-                G_R.iter().chain(H_L.iter()).chain(iter::once(Q)).chain(iter::once(Q_prime)),
+                    .chain(iter::once(c_L))
+                    .chain(iter::once(delta_L)),
+                G_R.iter()
+                    .chain(H_L.iter())
+                    .chain(iter::once(Q))
+                    .chain(iter::once(Q_prime)),
             )
             .compress();
 
@@ -131,8 +142,12 @@ impl InnerProductProof {
                             .zip(H_factors[n..2 * n].into_iter())
                             .map(|(b_L_i, h)| b_L_i * h),
                     )
-                    .chain(iter::once(c_R)).chain(iter::once(delta_R)),
-                G_L.iter().chain(H_R.iter()).chain(iter::once(Q)).chain(iter::once(Q_prime)),
+                    .chain(iter::once(c_R))
+                    .chain(iter::once(delta_R)),
+                G_L.iter()
+                    .chain(H_R.iter())
+                    .chain(iter::once(Q))
+                    .chain(iter::once(Q_prime)),
             )
             .compress();
 
@@ -145,7 +160,7 @@ impl InnerProductProof {
             let u = transcript.challenge_scalar(b"u");
             let u_inv = u.invert();
             // Update delta
-            delta = delta + u*u*delta_L + u_inv*u_inv*delta_R;
+            delta = delta + u * u * delta_L + u_inv * u_inv * delta_R;
 
             for i in 0..n {
                 a_L[i] = a_L[i] * u + u_inv * a_R[i];
@@ -179,20 +194,38 @@ impl InnerProductProof {
 
             // Sample delta_L and delta_R
             // These are random scalars known to the prover only (How do I generate them? See above)
-            let delta_L = if no_zk { Scalar::zero() } else { Scalar::random(&mut rng)};
-            let delta_R = if no_zk { Scalar::zero() } else { Scalar::random(&mut rng)};
-
-
+            let delta_L = if no_zk {
+                Scalar::zero()
+            } else {
+                Scalar::random(&mut rng)
+            };
+            let delta_R = if no_zk {
+                Scalar::zero()
+            } else {
+                Scalar::random(&mut rng)
+            };
 
             let L = RistrettoPoint::vartime_multiscalar_mul(
-                a_L.iter().chain(b_R.iter()).chain(iter::once(&c_L)).chain(iter::once(&delta_L)),
-                G_R.iter().chain(H_L.iter()).chain(iter::once(Q)).chain(iter::once(Q_prime)),
+                a_L.iter()
+                    .chain(b_R.iter())
+                    .chain(iter::once(&c_L))
+                    .chain(iter::once(&delta_L)),
+                G_R.iter()
+                    .chain(H_L.iter())
+                    .chain(iter::once(Q))
+                    .chain(iter::once(Q_prime)),
             )
             .compress();
 
             let R = RistrettoPoint::vartime_multiscalar_mul(
-                a_R.iter().chain(b_L.iter()).chain(iter::once(&c_R)).chain(iter::once(&delta_R)),
-                G_L.iter().chain(H_R.iter()).chain(iter::once(Q)).chain(iter::once(Q_prime)),
+                a_R.iter()
+                    .chain(b_L.iter())
+                    .chain(iter::once(&c_R))
+                    .chain(iter::once(&delta_R)),
+                G_L.iter()
+                    .chain(H_R.iter())
+                    .chain(iter::once(Q))
+                    .chain(iter::once(Q_prime)),
             )
             .compress();
 
@@ -205,7 +238,7 @@ impl InnerProductProof {
             let u = transcript.challenge_scalar(b"u");
             let u_inv = u.invert();
             // Update delta
-            delta = delta + u*u*delta_L + u_inv*u_inv*delta_R;
+            delta = delta + u * u * delta_L + u_inv * u_inv * delta_R;
 
             for i in 0..n {
                 a_L[i] = a_L[i] * u + u_inv * a_R[i];
@@ -227,14 +260,26 @@ impl InnerProductProof {
         let r2 = Scalar::random(&mut rng);
         let r3 = Scalar::random(&mut rng);
 
-        InnerProductProof {
+        BlindedInnerProductProof {
             L_vec: L_vec,
             R_vec: R_vec,
-            a: if no_zk {a[0]} else {Scalar::zero()},
-            b: if no_zk {b[0]} else {Scalar::zero()},
-            a_blinded: if no_zk {Scalar::zero()} else {r1 + ch * a[0]},
-            b_blinded: if no_zk {Scalar::zero()} else {r2 + ch * b[0]},
-            delta_blinded: if no_zk {Scalar::zero()} else {r3 + ch * delta},   
+            a: if no_zk { a[0] } else { Scalar::zero() },
+            b: if no_zk { b[0] } else { Scalar::zero() },
+            a_blinded: if no_zk {
+                Scalar::zero()
+            } else {
+                r1 + ch * a[0]
+            },
+            b_blinded: if no_zk {
+                Scalar::zero()
+            } else {
+                r2 + ch * b[0]
+            },
+            delta_blinded: if no_zk {
+                Scalar::zero()
+            } else {
+                r3 + ch * delta
+            },
         }
     }
 
@@ -263,7 +308,7 @@ impl InnerProductProof {
         let mut challenges = Vec::with_capacity(lg_n);
 
         transcript.challenge_scalar(b"z");
-        
+
         for (L, R) in self.L_vec.iter().zip(self.R_vec.iter()) {
             transcript.validate_and_append_point(b"L", L)?;
             transcript.validate_and_append_point(b"R", R)?;
@@ -298,7 +343,7 @@ impl InnerProductProof {
             s.push(s[i - k] * u_lg_i_sq);
         }
 
-        let ch = transcript.challenge_scalar(b"ch");
+        let _ch = transcript.challenge_scalar(b"ch");
 
         Ok((challenges_sq, challenges_inv_sq, s))
     }
@@ -357,8 +402,8 @@ impl InnerProductProof {
             .collect::<Result<Vec<_>, _>>()?;
 
         let no_zk = true;
-        let expect_P : RistrettoPoint;
-        if no_zk {        
+        let expect_P: RistrettoPoint;
+        if no_zk {
             expect_P = RistrettoPoint::vartime_multiscalar_mul(
                 iter::once(self.a * self.b)
                     .chain(g_times_a_times_s)
@@ -445,7 +490,7 @@ impl InnerProductProof {
     /// * \\(n\\) is larger or equal to 32 (proof is too big),
     /// * any of \\(2n\\) points are not valid compressed Ristretto points,
     /// * any of 5 scalars are not canonical scalars modulo Ristretto group order.
-    pub fn from_bytes(slice: &[u8]) -> Result<InnerProductProof, ProofError> {
+    pub fn from_bytes(slice: &[u8]) -> Result<BlindedInnerProductProof, ProofError> {
         let b = slice.len();
         if b % 32 != 0 {
             return Err(ProofError::FormatError);
@@ -484,8 +529,15 @@ impl InnerProductProof {
         let delta_blinded = Scalar::from_canonical_bytes(read32(&slice[pos + 128..]))
             .ok_or(ProofError::FormatError)?;
 
-
-        Ok(InnerProductProof { L_vec, R_vec, a, b, a_blinded, b_blinded, delta_blinded })
+        Ok(BlindedInnerProductProof {
+            L_vec,
+            R_vec,
+            a,
+            b,
+            a_blinded,
+            b_blinded,
+            delta_blinded,
+        })
     }
 }
 
@@ -549,7 +601,7 @@ mod tests {
         );
 
         let mut verifier = Transcript::new(b"innerproducttest");
-        let proof = InnerProductProof::create(
+        let proof = BlindedInnerProductProof::create(
             &mut verifier,
             &Q,
             &G_factors,
@@ -574,7 +626,7 @@ mod tests {
             )
             .is_ok());
 
-        let proof = InnerProductProof::from_bytes(proof.to_bytes().as_slice()).unwrap();
+        let proof = BlindedInnerProductProof::from_bytes(proof.to_bytes().as_slice()).unwrap();
         let mut verifier = Transcript::new(b"innerproducttest");
         assert!(proof
             .verify(

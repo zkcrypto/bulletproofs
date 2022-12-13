@@ -139,7 +139,8 @@ impl ShuffleProof {
 
         ShuffleProof::gadget(&mut verifier, input_vars, output_vars)?;
 
-        verifier.verify(&self.0, &pc_gens, &bp_gens)
+        verifier.verify(&self.0, &pc_gens, &bp_gens)?;
+        Ok(())
     }
 }
 
@@ -155,7 +156,7 @@ fn kshuffle_helper(k: usize) {
         let mut rng = rand::thread_rng();
         let (min, max) = (0u64, std::u64::MAX);
         let input: Vec<Scalar> = (0..k)
-            .map(|_| Scalar::from(rng.gen_range(min, max)))
+            .map(|_| Scalar::from(rng.gen_range(min..max)))
             .collect();
         let mut output = input.clone();
         output.shuffle(&mut rand::thread_rng());
@@ -410,7 +411,7 @@ fn range_proof_gadget() {
 
     for n in [2, 10, 32, 63].iter() {
         let (min, max) = (0u64, ((1u128 << n) - 1) as u64);
-        let values: Vec<u64> = (0..m).map(|_| rng.gen_range(min, max)).collect();
+        let values: Vec<u64> = (0..m).map(|_| rng.gen_range(min..max)).collect();
         for v in values {
             assert!(range_proof_helper(v.into(), *n).is_ok());
         }
@@ -449,5 +450,5 @@ fn range_proof_helper(v_val: u64, n: usize) -> Result<(), R1CSError> {
     assert!(range_proof(&mut verifier, var.into(), None, n).is_ok());
 
     // Verifier verifies proof
-    Ok(verifier.verify(&proof, &pc_gens, &bp_gens)?)
+    verifier.verify(&proof, &pc_gens, &bp_gens)
 }

@@ -17,6 +17,11 @@ Entries are listed in reverse chronological order.
 * Update `curve25519-dalek` and internal dependencies.
 * Tweaks to the (unstable) R1CS API.
 
+## 2.0.1
+
+* `Serde` is optional.
+* Replace `clear_on_drop` by `zeroize`.
+
 ## 2.0.0
 
 * Switch from `failure` to `std`-compatible errors via `thiserror`.

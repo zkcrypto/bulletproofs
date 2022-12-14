@@ -37,20 +37,13 @@ bincode = "1"
 rand_chacha = "0.3"
 
 [features]
-default = ["std", "avx2_backend", "zeroize"]
-
-u64_backend = ["curve25519-dalek/u64_backend", ]
+default = ["std", "serde", "zeroize"]
 avx2_backend = ["curve25519-dalek/avx2_backend"]
-u32_backend = ["curve25519-dalek/u32_backend"] 
-# yoloproofs = []
-
-std = [
-	"serde",
-	"serde_derive",
-	"curve25519-dalek/serde",
-	"rand/std", 
-	"thiserror", 
-]
+yoloproofs = []
+serde = ["dep:serde", "serde_derive", "curve25519-dalek/serde"]
+std = ["serde", "rand", "rand/std", "rand/std_rng", "thiserror", "curve25519-dalek/std"]
+nightly = ["curve25519-dalek/nightly", "curve25519-dalek/alloc", "subtle/nightly", "zeroize/nightly"]
+docs = ["nightly"]
 
 [[test]]
 name = "range_proof"

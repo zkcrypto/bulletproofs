@@ -91,8 +91,6 @@ impl ProofShare {
         poly_commitment: &PolyCommitment,
         poly_challenge: &PolyChallenge,
     ) -> Result<(), ()> {
-        use curve25519_dalek::traits::{IsIdentity, VartimeMultiscalarMul};
-
         use crate::inner_product_proof::inner_product;
         use crate::util;
 

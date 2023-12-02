@@ -279,7 +279,7 @@ impl PartyAwaitingPolyChallenge {
     pub fn apply_challenge(self, pc: &PolyChallenge) -> Result<ProofShare, MPCError> {
         // Prevent a malicious dealer from annihilating the blinding
         // factors by supplying a zero challenge.
-        if pc.x == Scalar::zero() {
+        if pc.x == Scalar::ZERO {
             return Err(MPCError::MaliciousDealer);
         }
 

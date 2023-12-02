@@ -275,11 +275,11 @@ impl<T: BorrowMut<Transcript>> Verifier<T> {
         let n = self.num_vars;
         let m = self.V.len();
 
-        let mut wL = vec![Scalar::zero(); n];
-        let mut wR = vec![Scalar::zero(); n];
-        let mut wO = vec![Scalar::zero(); n];
-        let mut wV = vec![Scalar::zero(); m];
-        let mut wc = Scalar::zero();
+        let mut wL = vec![Scalar::ZERO; n];
+        let mut wR = vec![Scalar::ZERO; n];
+        let mut wO = vec![Scalar::ZERO; n];
+        let mut wV = vec![Scalar::ZERO; m];
+        let mut wc = Scalar::ZERO;
 
         let mut exp_z = *z;
         for lc in self.constraints.iter() {
@@ -428,7 +428,7 @@ impl<T: BorrowMut<Transcript>> Verifier<T> {
             .into_iter()
             .zip(y_inv_vec.iter())
             .map(|(wRi, exp_y_inv)| wRi * exp_y_inv)
-            .chain(iter::repeat(Scalar::zero()).take(pad))
+            .chain(iter::repeat(Scalar::ZERO).take(pad))
             .collect::<Vec<Scalar>>();
 
         let delta = inner_product(&yneg_wR[0..n], &wL);
@@ -449,8 +449,8 @@ impl<T: BorrowMut<Transcript>> Verifier<T> {
             .iter()
             .zip(u_for_h)
             .zip(s.iter().rev().take(padded_n))
-            .zip(wL.into_iter().chain(iter::repeat(Scalar::zero()).take(pad)))
-            .zip(wO.into_iter().chain(iter::repeat(Scalar::zero()).take(pad)))
+            .zip(wL.into_iter().chain(iter::repeat(Scalar::ZERO).take(pad)))
+            .zip(wO.into_iter().chain(iter::repeat(Scalar::ZERO).take(pad)))
             .map(|((((y_inv_i, u_or_1), s_i_inv), wLi), wOi)| {
                 u_or_1 * (y_inv_i * (x * wLi + wOi - b * s_i_inv) - Scalar::ONE)
             });

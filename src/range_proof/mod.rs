@@ -611,7 +611,7 @@ mod tests {
         // code copied from previous implementation
         let z2 = z * z;
         let z3 = z2 * z;
-        let mut power_g = Scalar::zero();
+        let mut power_g = Scalar::ZERO;
         let mut exp_y = Scalar::ONE; // start at y^0 = 1
         let mut exp_2 = Scalar::ONE; // start at 2^0 = 1
         for _ in 0..n {
@@ -832,7 +832,7 @@ mod tests {
             dealer.receive_poly_commitments(vec![poly_com0]).unwrap();
 
         // But now simulate a malicious dealer choosing x = 0
-        poly_challenge.x = Scalar::zero();
+        poly_challenge.x = Scalar::ZERO;
 
         let maybe_share0 = party0.apply_challenge(&poly_challenge);
 

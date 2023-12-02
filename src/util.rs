@@ -71,7 +71,7 @@ pub fn add_vec(a: &[Scalar], b: &[Scalar]) -> Vec<Scalar> {
         // throw some error
         //println!("lengths of vectors don't match for vector addition");
     }
-    let mut out = vec![Scalar::zero(); b.len()];
+    let mut out = vec![Scalar::ZERO; b.len()];
     for i in 0..a.len() {
         out[i] = a[i] + b[i];
     }
@@ -80,7 +80,7 @@ pub fn add_vec(a: &[Scalar], b: &[Scalar]) -> Vec<Scalar> {
 
 impl VecPoly1 {
     pub fn zero(n: usize) -> Self {
-        VecPoly1(vec![Scalar::zero(); n], vec![Scalar::zero(); n])
+        VecPoly1(vec![Scalar::ZERO; n], vec![Scalar::ZERO; n])
     }
 
     pub fn inner_product(&self, rhs: &VecPoly1) -> Poly2 {
@@ -101,7 +101,7 @@ impl VecPoly1 {
 
     pub fn eval(&self, x: Scalar) -> Vec<Scalar> {
         let n = self.0.len();
-        let mut out = vec![Scalar::zero(); n];
+        let mut out = vec![Scalar::ZERO; n];
         for i in 0..n {
             out[i] = self.0[i] + self.1[i] * x;
         }
@@ -113,10 +113,10 @@ impl VecPoly1 {
 impl VecPoly3 {
     pub fn zero(n: usize) -> Self {
         VecPoly3(
-            vec![Scalar::zero(); n],
-            vec![Scalar::zero(); n],
-            vec![Scalar::zero(); n],
-            vec![Scalar::zero(); n],
+            vec![Scalar::ZERO; n],
+            vec![Scalar::ZERO; n],
+            vec![Scalar::ZERO; n],
+            vec![Scalar::ZERO; n],
         )
     }
 
@@ -146,7 +146,7 @@ impl VecPoly3 {
 
     pub fn eval(&self, x: Scalar) -> Vec<Scalar> {
         let n = self.0.len();
-        let mut out = vec![Scalar::zero(); n];
+        let mut out = vec![Scalar::ZERO; n];
         for i in 0..n {
             out[i] = self.0[i] + x * (self.1[i] + x * (self.2[i] + x * self.3[i]));
         }
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn test_sum_of_powers_slow() {
         let x = Scalar::from(10u64);
-        assert_eq!(sum_of_powers_slow(&x, 0), Scalar::zero());
+        assert_eq!(sum_of_powers_slow(&x, 0), Scalar::ZERO);
         assert_eq!(sum_of_powers_slow(&x, 1), Scalar::ONE);
         assert_eq!(sum_of_powers_slow(&x, 2), Scalar::from(11u64));
         assert_eq!(sum_of_powers_slow(&x, 3), Scalar::from(111u64));
@@ -366,8 +366,8 @@ mod tests {
         }
 
         assert_eq!(flat_slice(&v.as_slice()), &[0u8; 64][..]);
-        assert_eq!(v[0], Scalar::zero());
-        assert_eq!(v[1], Scalar::zero());
+        assert_eq!(v[0], Scalar::ZERO);
+        assert_eq!(v[1], Scalar::ZERO);
     }
 
     #[test]
@@ -390,8 +390,8 @@ mod tests {
         }
 
         assert_eq!(as_bytes(&v), &[0u8; 96][..]);
-        assert_eq!(v.0, Scalar::zero());
-        assert_eq!(v.1, Scalar::zero());
-        assert_eq!(v.2, Scalar::zero());
+        assert_eq!(v.0, Scalar::ZERO);
+        assert_eq!(v.1, Scalar::ZERO);
+        assert_eq!(v.2, Scalar::ZERO);
     }
 }

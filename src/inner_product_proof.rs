@@ -413,7 +413,7 @@ impl InnerProductProof {
 /// \\]
 /// Panics if the lengths of \\(\mathbf{a}\\) and \\(\mathbf{b}\\) are not equal.
 pub fn inner_product(a: &[Scalar], b: &[Scalar]) -> Scalar {
-    let mut out = Scalar::zero();
+    let mut out = Scalar::ZERO;
     if a.len() != b.len() {
         panic!("inner_product(a,b): lengths of vectors do not match");
     }

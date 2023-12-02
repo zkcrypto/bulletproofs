@@ -446,7 +446,7 @@ mod tests {
         let b: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
         let c = inner_product(&a, &b);
 
-        let G_factors: Vec<Scalar> = iter::repeat(Scalar::one()).take(n).collect();
+        let G_factors: Vec<Scalar> = iter::repeat(Scalar::ONE).take(n).collect();
 
         // y_inv is (the inverse of) a random challenge
         let y_inv = Scalar::random(&mut rng);
@@ -483,7 +483,7 @@ mod tests {
             .verify(
                 n,
                 &mut verifier,
-                iter::repeat(Scalar::one()).take(n),
+                iter::repeat(Scalar::ONE).take(n),
                 util::exp_iter(y_inv).take(n),
                 &P,
                 &Q,
@@ -498,7 +498,7 @@ mod tests {
             .verify(
                 n,
                 &mut verifier,
-                iter::repeat(Scalar::one()).take(n),
+                iter::repeat(Scalar::ONE).take(n),
                 util::exp_iter(y_inv).take(n),
                 &P,
                 &Q,

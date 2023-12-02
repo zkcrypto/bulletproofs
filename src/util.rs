@@ -62,7 +62,7 @@ impl Iterator for ScalarExp {
 
 /// Return an iterator of the powers of `x`.
 pub fn exp_iter(x: Scalar) -> ScalarExp {
-    let next_exp_x = Scalar::one();
+    let next_exp_x = Scalar::ONE;
     ScalarExp { x, next_exp_x }
 }
 
@@ -220,7 +220,7 @@ impl Drop for Poly6 {
 /// with (1 to 2)*lg(n) scalar multiplications.
 /// TODO: a consttime version of this would be awfully similar to a Montgomery ladder.
 pub fn scalar_exp_vartime(x: &Scalar, mut n: u64) -> Scalar {
-    let mut result = Scalar::one();
+    let mut result = Scalar::ONE;
     let mut aux = *x; // x, x^2, x^4, x^8, ...
     while n > 0 {
         let bit = n & 1;
@@ -245,7 +245,7 @@ pub fn sum_of_powers(x: &Scalar, n: usize) -> Scalar {
         return Scalar::from(n as u64);
     }
     let mut m = n;
-    let mut result = Scalar::one() + x;
+    let mut result = Scalar::ONE + x;
     let mut factor = *x;
     while m > 2 {
         factor = factor * factor;
@@ -300,7 +300,7 @@ mod tests {
 
     /// Raises `x` to the power `n`.
     fn scalar_exp_vartime_slow(x: &Scalar, n: u64) -> Scalar {
-        let mut result = Scalar::one();
+        let mut result = Scalar::ONE;
         for _ in 0..n {
             result = result * x;
         }
@@ -312,7 +312,7 @@ mod tests {
         let x = Scalar::from_bits(
             *b"\x84\xfc\xbcOx\x12\xa0\x06\xd7\x91\xd9z:'\xdd\x1e!CE\xf7\xb1\xb9Vz\x810sD\x96\x85\xb5\x07",
         );
-        assert_eq!(scalar_exp_vartime(&x, 0), Scalar::one());
+        assert_eq!(scalar_exp_vartime(&x, 0), Scalar::ONE);
         assert_eq!(scalar_exp_vartime(&x, 1), x);
         assert_eq!(scalar_exp_vartime(&x, 2), x * x);
         assert_eq!(scalar_exp_vartime(&x, 3), x * x * x);
@@ -342,7 +342,7 @@ mod tests {
     fn test_sum_of_powers_slow() {
         let x = Scalar::from(10u64);
         assert_eq!(sum_of_powers_slow(&x, 0), Scalar::zero());
-        assert_eq!(sum_of_powers_slow(&x, 1), Scalar::one());
+        assert_eq!(sum_of_powers_slow(&x, 1), Scalar::ONE);
         assert_eq!(sum_of_powers_slow(&x, 2), Scalar::from(11u64));
         assert_eq!(sum_of_powers_slow(&x, 3), Scalar::from(111u64));
         assert_eq!(sum_of_powers_slow(&x, 4), Scalar::from(1111u64));

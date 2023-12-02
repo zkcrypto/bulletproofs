@@ -81,8 +81,8 @@ impl<T: BorrowMut<Transcript>> ConstraintSystem for Verifier<T> {
         let o_var = Variable::MultiplierOutput(var);
 
         // Constrain l,r,o:
-        left.terms.push((l_var, -Scalar::one()));
-        right.terms.push((r_var, -Scalar::one()));
+        left.terms.push((l_var, -Scalar::ONE));
+        right.terms.push((r_var, -Scalar::ONE));
         self.constrain(left);
         self.constrain(right);
 
@@ -433,7 +433,7 @@ impl<T: BorrowMut<Transcript>> Verifier<T> {
 
         let delta = inner_product(&yneg_wR[0..n], &wL);
 
-        let u_for_g = iter::repeat(Scalar::one())
+        let u_for_g = iter::repeat(Scalar::ONE)
             .take(n1)
             .chain(iter::repeat(u).take(n2 + pad));
         let u_for_h = u_for_g.clone();
@@ -452,7 +452,7 @@ impl<T: BorrowMut<Transcript>> Verifier<T> {
             .zip(wL.into_iter().chain(iter::repeat(Scalar::zero()).take(pad)))
             .zip(wO.into_iter().chain(iter::repeat(Scalar::zero()).take(pad)))
             .map(|((((y_inv_i, u_or_1), s_i_inv), wLi), wOi)| {
-                u_or_1 * (y_inv_i * (x * wLi + wOi - b * s_i_inv) - Scalar::one())
+                u_or_1 * (y_inv_i * (x * wLi + wOi - b * s_i_inv) - Scalar::ONE)
             });
 
         // Create a `TranscriptRng` from the transcript. The verifier

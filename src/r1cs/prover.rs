@@ -120,8 +120,8 @@ impl<'g, T: BorrowMut<Transcript>> ConstraintSystem for Prover<'g, T> {
         self.secrets.a_O.push(o);
 
         // Constrain l,r,o:
-        left.terms.push((l_var, -Scalar::one()));
-        right.terms.push((r_var, -Scalar::one()));
+        left.terms.push((l_var, -Scalar::ONE));
+        right.terms.push((r_var, -Scalar::ONE));
         self.constrain(left);
         self.constrain(right);
 
@@ -365,7 +365,7 @@ impl<'g, T: BorrowMut<Transcript>> Prover<'g, T> {
                         Variable::MultiplierRight(i) => self.secrets.a_R[*i],
                         Variable::MultiplierOutput(i) => self.secrets.a_O[*i],
                         Variable::Committed(i) => self.secrets.v[*i],
-                        Variable::One() => Scalar::one(),
+                        Variable::One() => Scalar::ONE,
                     }
             })
             .sum()
@@ -580,7 +580,7 @@ impl<'g, T: BorrowMut<Transcript>> Prover<'g, T> {
         let mut l_poly = util::VecPoly3::zero(n);
         let mut r_poly = util::VecPoly3::zero(n);
 
-        let mut exp_y = Scalar::one(); // y^n starting at n=0
+        let mut exp_y = Scalar::ONE; // y^n starting at n=0
         let y_inv = y.invert();
         let exp_y_inv = util::exp_iter(y_inv).take(padded_n).collect::<Vec<_>>();
 
@@ -676,7 +676,7 @@ impl<'g, T: BorrowMut<Transcript>> Prover<'g, T> {
         let w = transcript.challenge_scalar(b"w");
         let Q = w * self.pc_gens.B;
 
-        let G_factors = iter::repeat(Scalar::one())
+        let G_factors = iter::repeat(Scalar::ONE)
             .take(n1)
             .chain(iter::repeat(u).take(n2 + pad))
             .collect::<Vec<_>>();

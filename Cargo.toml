@@ -1,11 +1,11 @@
 [package]
 name = "bulletproofs"
 # Before doing a release:
-# - update version field 
+# - update version field
 # - update html_root_url
 # - update CHANGELOG
 version = "4.0.0"
-authors = ["Cathie Yun <cathieyun@gmail.com>", 
+authors = ["Cathie Yun <cathieyun@gmail.com>",
            "Henry de Valence <hdevalence@hdevalence.ca>",
            "Oleg Andreev <oleganza@gmail.com>"]
 readme = "README.md"
@@ -20,8 +20,8 @@ edition = "2018"
 curve25519-dalek = { version = "4.1.1", features = ["digest", "group", "rand_core", "serde"] }
 group = { version = "0.13", default-features = false }
 subtle = { version = "2.5", default-features = false }
-sha3 = { version = "0.10.8", default-features = false }
-digest = { version = "0.10.7", default-features = false }
+sha3 = { version = "0.10", default-features = false }
+digest = { version = "0.10", default-features = false }
 rand_core = { version = "0.6", default-features = false, features = ["alloc"] }
 rand = { version = "0.8", default-features = false, optional = true }
 byteorder = { version = "1", default-features = false }

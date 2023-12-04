@@ -94,6 +94,8 @@ impl ProofShare {
     ) -> Result<(), ()> {
         use crate::inner_product_proof::inner_product;
         use crate::util;
+        use core::ops::Not;
+        use group::Group;
 
         let n = self.l_vec.len();
 
@@ -136,7 +138,7 @@ impl ProofShare {
                 .chain(bp_gens.share(j).G(n))
                 .chain(bp_gens.share(j).H(n)),
         );
-        if !P_check.is_identity() {
+        if P_check.is_identity().not().into() {
             return Err(());
         }
 
@@ -158,7 +160,7 @@ impl ProofShare {
                 .chain(iter::once(&pc_gens.B_blinding)),
         );
 
-        if t_check.is_identity() {
+        if t_check.is_identity().into() {
             Ok(())
         } else {
             Err(())

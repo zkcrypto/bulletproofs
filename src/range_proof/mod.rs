@@ -417,6 +417,7 @@ impl RangeProof {
         let value_commitment_scalars = util::exp_iter(z).take(m).map(|z_exp| c * zz * z_exp);
         let basepoint_scalar = w * (self.t_x - a * b) + c * (delta(n, m, &y, &z) - self.t_x);
 
+        use curve25519_dalek::traits::VartimeMultiscalarMul;
         let mega_check = RistrettoPoint::optional_multiscalar_mul(
             iter::once(Scalar::ONE)
                 .chain(iter::once(x))
@@ -443,7 +444,8 @@ impl RangeProof {
         )
         .ok_or_else(|| ProofError::VerificationError)?;
 
-        if mega_check.is_identity() {
+        use group::Group;
+        if mega_check.is_identity().into() {
             Ok(())
         } else {
             Err(ProofError::VerificationError)

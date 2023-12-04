@@ -391,9 +391,9 @@ impl LinearProof {
 
         let pos = 2 * lg_n * 32;
         let S = CompressedRistretto(read32(&slice[pos..]));
-        let a = Scalar::from_canonical_bytes(read32(&slice[pos + 32..]))
+        let a = Option::from(Scalar::from_canonical_bytes(read32(&slice[pos + 32..])))
             .ok_or(ProofError::FormatError)?;
-        let r = Scalar::from_canonical_bytes(read32(&slice[pos + 64..]))
+        let r = Option::from(Scalar::from_canonical_bytes(read32(&slice[pos + 64..])))
             .ok_or(ProofError::FormatError)?;
 
         Ok(LinearProof {

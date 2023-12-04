@@ -398,9 +398,9 @@ impl InnerProductProof {
         }
 
         let pos = 2 * lg_n * 32;
-        let a =
-            Scalar::from_canonical_bytes(read32(&slice[pos..])).ok_or(ProofError::FormatError)?;
-        let b = Scalar::from_canonical_bytes(read32(&slice[pos + 32..]))
+        let a = Option::from(Scalar::from_canonical_bytes(read32(&slice[pos..])))
+            .ok_or(ProofError::FormatError)?;
+        let b = Option::from(Scalar::from_canonical_bytes(read32(&slice[pos + 32..])))
             .ok_or(ProofError::FormatError)?;
 
         Ok(InnerProductProof { L_vec, R_vec, a, b })

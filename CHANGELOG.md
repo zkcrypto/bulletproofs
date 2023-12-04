@@ -2,6 +2,10 @@
 
 Entries are listed in reverse chronological order.
 
+## 5.0.0
+
+* Change `curve25519-dalek-ng` dependency to `curve25519-dalek`. A major version bump is required because one cannot import `curve25519-dalek` and `bulletproofs` without conflicts.
+
 ## 4.0.0
 
 * Update to `rand_core` `0.6`.  This requires a major version bump but the API
@@ -39,7 +43,7 @@ Entries are listed in reverse chronological order.
 * Updates the library to use the renamed functions in Merlin 1.1.
 * Adds additional validation checks to prevent identity points being used as
   part of a proof.  This does not appear to have security content, but is
-  intended as a defense-in-depth mechanism.  
+  intended as a defense-in-depth mechanism.
   See [this comment][identity_comment] for more motivation.
 * Documentation tweaks.
 
@@ -52,7 +56,7 @@ Entries are listed in reverse chronological order.
 
 ## 1.0.0
 
-* Minor tweaks to the prerelease version.  
+* Minor tweaks to the prerelease version.
 * Preliminary support for R1CS proofs, but this feature is hard-disabled in the
   published crate.
 

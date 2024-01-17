@@ -28,7 +28,7 @@ serde = { version = "1", default-features = false, features = ["alloc"] }
 serde_derive = { version = "1", default-features = false }
 thiserror = { version = "1", optional = true }
 merlin = { version = "3", default-features = false }
-clear_on_drop = { version = "0.2", default-features = false }
+zeroize = { version = "1.1.0", default-features = false, features = ["alloc"], optional = true }
 
 [dev-dependencies]
 hex = "0.3"
@@ -37,11 +37,11 @@ bincode = "1"
 rand_chacha = "0.3"
 
 [features]
-default = ["std"]
+default = ["std", "zeroize"]
 avx2_backend = ["curve25519-dalek/avx2_backend"]
 yoloproofs = []
 std = ["rand", "rand/std", "rand/std_rng", "thiserror", "curve25519-dalek/std"]
-nightly = ["curve25519-dalek/nightly", "curve25519-dalek/alloc", "subtle/nightly", "clear_on_drop/nightly"]
+nightly = ["curve25519-dalek/nightly", "curve25519-dalek/alloc", "subtle/nightly"]
 docs = ["nightly"]
 
 

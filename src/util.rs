@@ -5,17 +5,20 @@ extern crate alloc;
 
 use alloc::vec;
 use alloc::vec::Vec;
-use clear_on_drop::clear::Clear;
 use curve25519_dalek::scalar::Scalar;
+#[cfg(feature = "zeroize")]
+use zeroize::Zeroize;
 
 use crate::inner_product_proof::inner_product;
 
 /// Represents a degree-1 vector polynomial \\(\mathbf{a} + \mathbf{b} \cdot x\\).
+#[cfg_attr(feature = "zeroize", derive(Zeroize), zeroize(drop))]
 pub struct VecPoly1(pub Vec<Scalar>, pub Vec<Scalar>);
 
 /// Represents a degree-3 vector polynomial
 /// \\(\mathbf{a} + \mathbf{b} \cdot x + \mathbf{c} \cdot x^2 + \mathbf{d} \cdot x^3 \\).
 #[cfg(feature = "yoloproofs")]
+#[cfg_attr(feature = "zeroize", derive(Zeroize), zeroize(drop))]
 pub struct VecPoly3(
     pub Vec<Scalar>,
     pub Vec<Scalar>,
@@ -24,11 +27,13 @@ pub struct VecPoly3(
 );
 
 /// Represents a degree-2 scalar polynomial \\(a + b \cdot x + c \cdot x^2\\)
+#[cfg_attr(feature = "zeroize", derive(Zeroize), zeroize(drop))]
 pub struct Poly2(pub Scalar, pub Scalar, pub Scalar);
 
 /// Represents a degree-6 scalar polynomial, without the zeroth degree
 /// \\(a \cdot x + b \cdot x^2 + c \cdot x^3 + d \cdot x^4 + e \cdot x^5 + f \cdot x^6\\)
 #[cfg(feature = "yoloproofs")]
+#[cfg_attr(feature = "zeroize", derive(Zeroize), zeroize(drop))]
 pub struct Poly6 {
     pub t1: Scalar,
     pub t2: Scalar,
@@ -167,55 +172,6 @@ impl Poly6 {
     }
 }
 
-impl Drop for VecPoly1 {
-    fn drop(&mut self) {
-        for e in self.0.iter_mut() {
-            e.clear();
-        }
-        for e in self.1.iter_mut() {
-            e.clear();
-        }
-    }
-}
-
-impl Drop for Poly2 {
-    fn drop(&mut self) {
-        self.0.clear();
-        self.1.clear();
-        self.2.clear();
-    }
-}
-
-#[cfg(feature = "yoloproofs")]
-impl Drop for VecPoly3 {
-    fn drop(&mut self) {
-        for e in self.0.iter_mut() {
-            e.clear();
-        }
-        for e in self.1.iter_mut() {
-            e.clear();
-        }
-        for e in self.2.iter_mut() {
-            e.clear();
-        }
-        for e in self.3.iter_mut() {
-            e.clear();
-        }
-    }
-}
-
-#[cfg(feature = "yoloproofs")]
-impl Drop for Poly6 {
-    fn drop(&mut self) {
-        self.t1.clear();
-        self.t2.clear();
-        self.t3.clear();
-        self.t4.clear();
-        self.t5.clear();
-        self.t6.clear();
-    }
-}
-
 /// Raises `x` to the power `n` using binary exponentiation,
 /// with (1 to 2)*lg(n) scalar multiplications.
 /// TODO: a consttime version of this would be awfully similar to a Montgomery ladder.
@@ -350,12 +306,13 @@ mod tests {
         assert_eq!(sum_of_powers_slow(&x, 6), Scalar::from(111111u64));
     }
 
+    #[cfg(feature = "zeroize")]
     #[test]
-    fn vec_of_scalars_clear_on_drop() {
+    fn vec_of_scalars_zeroize() {
         let mut v = vec![Scalar::from(24u64), Scalar::from(42u64)];
 
         for e in v.iter_mut() {
-            e.clear();
+            e.zeroize();
         }
 
         fn flat_slice<T>(x: &[T]) -> &[u8] {
@@ -370,17 +327,18 @@ mod tests {
         assert_eq!(v[1], Scalar::zero());
     }
 
+    #[cfg(feature = "zeroize")]
     #[test]
-    fn tuple_of_scalars_clear_on_drop() {
+    fn tuple_of_scalars_zeroize() {
         let mut v = Poly2(
             Scalar::from(24u64),
             Scalar::from(42u64),
             Scalar::from(255u64),
         );
 
-        v.0.clear();
-        v.1.clear();
-        v.2.clear();
+        v.0.zeroize();
+        v.1.zeroize();
+        v.2.zeroize();
 
         fn as_bytes<T>(x: &T) -> &[u8] {
             use core::mem;

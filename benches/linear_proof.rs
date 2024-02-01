@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use criterion::BenchmarkId;
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 use core::iter;
 
@@ -18,10 +18,7 @@ static TEST_SIZES: [usize; 5] = [64, 128, 256, 512, 1024];
 fn create_linear_proof_helper(c: &mut Criterion) {
     let mut group = c.benchmark_group("linear proof creation");
     for size in TEST_SIZES {
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            &size,
-        move |bench, n| {
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, move |bench, n| {
             let mut rng = rand::thread_rng();
 
             let bp_gens = BulletproofGens::new(*n, 1);
@@ -64,8 +61,7 @@ fn create_linear_proof_helper(c: &mut Criterion) {
                 )
                 .unwrap();
             })
-        },
-        );
+        });
     }
 }
 
@@ -98,10 +94,7 @@ criterion_group! {
 fn linear_verify(c: &mut Criterion) {
     let mut group = c.benchmark_group("linear proof verification");
     for size in TEST_SIZES {
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            &size,
-        move |bench, n| {
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, move |bench, n| {
             let bp_gens = BulletproofGens::new(*n, 1);
             let mut rng = rand::thread_rng();
 
@@ -155,8 +148,7 @@ fn linear_verify(c: &mut Criterion) {
                     .verify(&mut verifier_transcript, &C, &G, &F, &B, b.clone())
                     .unwrap();
             });
-        },
-        );
+        });
     }
 }
 

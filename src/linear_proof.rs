@@ -132,10 +132,8 @@ impl LinearProof {
                 // b_L = b_L + x_j * b_R
                 b_L[i] = b_L[i] + x_j * b_R[i];
                 // G_L = G_L + x_j * G_R
-                G_L[i] = RistrettoPoint::vartime_multiscalar_mul(
-                    &[Scalar::ONE, x_j],
-                    &[G_L[i], G_R[i]],
-                );
+                G_L[i] =
+                    RistrettoPoint::vartime_multiscalar_mul(&[Scalar::ONE, x_j], &[G_L[i], G_R[i]]);
             }
             a = a_L;
             b = b_L;

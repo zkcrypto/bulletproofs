@@ -75,7 +75,10 @@ fn deserialize_and_verify() {
             &hex::decode("30beef3b58fd2c18dde771d5c77e32f8dc01361e284aef517bce54a5c74c4665")
                 .unwrap(),
         ),
-    ]).iter().map(|res| res.unwrap()).collect();
+    ])
+    .iter()
+    .map(|res| res.unwrap())
+    .collect();
 
     let pc_gens = PedersenGens::default();
     let bp_gens = BulletproofGens::new(64, 8);

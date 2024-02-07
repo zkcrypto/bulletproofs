@@ -10,6 +10,7 @@ use alloc::vec::Vec;
 use core::iter;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
+use curve25519_dalek::traits::VartimeMultiscalarMul;
 
 use crate::generators::{BulletproofGens, PedersenGens};
 
@@ -91,10 +92,10 @@ impl ProofShare {
         poly_commitment: &PolyCommitment,
         poly_challenge: &PolyChallenge,
     ) -> Result<(), ()> {
-        use curve25519_dalek::traits::{IsIdentity, VartimeMultiscalarMul};
-
         use crate::inner_product_proof::inner_product;
         use crate::util;
+        use core::ops::Not;
+        use group::Group;
 
         let n = self.l_vec.len();
 
@@ -126,7 +127,7 @@ impl ProofShare {
             });
 
         let P_check = RistrettoPoint::vartime_multiscalar_mul(
-            iter::once(Scalar::one())
+            iter::once(Scalar::ONE)
                 .chain(iter::once(*x))
                 .chain(iter::once(-self.e_blinding))
                 .chain(g)
@@ -137,7 +138,7 @@ impl ProofShare {
                 .chain(bp_gens.share(j).G(n))
                 .chain(bp_gens.share(j).H(n)),
         );
-        if !P_check.is_identity() {
+        if P_check.is_identity().not().into() {
             return Err(());
         }
 
@@ -159,7 +160,7 @@ impl ProofShare {
                 .chain(iter::once(&pc_gens.B_blinding)),
         );
 
-        if t_check.is_identity() {
+        if t_check.is_identity().into() {
             Ok(())
         } else {
             Err(())

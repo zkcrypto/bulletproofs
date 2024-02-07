@@ -1,11 +1,11 @@
 [package]
 name = "bulletproofs"
 # Before doing a release:
-# - update version field 
+# - update version field
 # - update html_root_url
 # - update CHANGELOG
-version = "4.0.0"
-authors = ["Cathie Yun <cathieyun@gmail.com>", 
+version = "5.0.0"
+authors = ["Cathie Yun <cathieyun@gmail.com>",
            "Henry de Valence <hdevalence@hdevalence.ca>",
            "Oleg Andreev <oleganza@gmail.com>"]
 readme = "README.md"
@@ -17,10 +17,11 @@ description = "A pure-Rust implementation of Bulletproofs using Ristretto"
 edition = "2018"
 
 [dependencies]
-curve25519-dalek = { package = "curve25519-dalek-ng", version = "4", default-features = false, features = ["u64_backend", "serde"] }
-subtle = { package = "subtle-ng", version = "2.4", default-features = false }
-sha3 = { version = "0.9.1", default-features = false }
-digest = { version = "0.9.0", default-features = false }
+curve25519-dalek = { version = "4.1.1", features = ["digest", "group", "rand_core", "serde"] }
+group = { version = "0.13", default-features = false }
+subtle = { version = "2.5", default-features = false }
+sha3 = { version = "0.10", default-features = false }
+digest = { version = "0.10", default-features = false }
 rand_core = { version = "0.6", default-features = false, features = ["alloc"] }
 rand = { version = "0.8", default-features = false, optional = true }
 byteorder = { version = "1", default-features = false }
@@ -35,13 +36,13 @@ hex = "0.3"
 criterion = "0.3"
 bincode = "1"
 rand_chacha = "0.3"
+curve25519-dalek = { version = "4.1.1", features = ["digest", "group", "legacy_compatibility", "rand_core", "serde"] }
 
 [features]
 default = ["std"]
-avx2_backend = ["curve25519-dalek/avx2_backend"]
 yoloproofs = []
-std = ["rand", "rand/std", "rand/std_rng", "thiserror", "curve25519-dalek/std"]
-nightly = ["curve25519-dalek/nightly", "curve25519-dalek/alloc", "subtle/nightly", "clear_on_drop/nightly"]
+std = ["rand", "rand/std", "rand/std_rng", "thiserror"]
+nightly = ["subtle/nightly", "clear_on_drop/nightly"]
 docs = ["nightly"]
 
 
@@ -55,7 +56,6 @@ required-features = ["yoloproofs"]
 [[bench]]
 name = "range_proof"
 harness = false
-required-features = ["avx2_backend"]
 
 [[bench]]
 name = "generators"
@@ -64,7 +64,7 @@ harness = false
 [[bench]]
 name = "r1cs"
 harness = false
-required-features = ["yoloproofs", "avx2_backend"]
+required-features = ["yoloproofs"]
 
 [[bench]]
 name = "linear_proof"

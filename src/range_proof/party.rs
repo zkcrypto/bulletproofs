@@ -17,7 +17,6 @@ use clear_on_drop::clear::Clear;
 use core::iter;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::traits::MultiscalarMul;
 use rand_core::{CryptoRng, RngCore};
 
 use crate::errors::MPCError;
@@ -99,14 +98,15 @@ impl<'a> PartyAwaitingPosition<'a> {
         // Compute A = <a_L, G> + <a_R, H> + a_blinding * B_blinding
         let mut A = self.pc_gens.B_blinding * a_blinding;
 
-        use subtle::{Choice, ConditionallySelectable};
+        use subtle::Choice;
+        use subtle::ConditionallySelectable;
         let mut i = 0;
         for (G_i, H_i) in bp_share.G(self.n).zip(bp_share.H(self.n)) {
             // If v_i = 0, we add a_L[i] * G[i] + a_R[i] * H[i] = - H[i]
             // If v_i = 1, we add a_L[i] * G[i] + a_R[i] * H[i] =   G[i]
             let v_i = Choice::from(((self.v >> i) & 1) as u8);
             let mut point = -H_i;
-            point.conditional_assign(G_i, v_i);
+            let point = RistrettoPoint::conditional_select(&point, G_i, v_i);
             A += point;
             i += 1;
         }
@@ -116,6 +116,7 @@ impl<'a> PartyAwaitingPosition<'a> {
         let s_R: Vec<Scalar> = (0..self.n).map(|_| Scalar::random(rng)).collect();
 
         // Compute S = <s_L, G> + <s_R, H> + s_blinding * B_blinding
+        use curve25519_dalek::traits::MultiscalarMul;
         let S = RistrettoPoint::multiscalar_mul(
             iter::once(&s_blinding).chain(s_L.iter()).chain(s_R.iter()),
             iter::once(&self.pc_gens.B_blinding)
@@ -194,10 +195,10 @@ impl<'a> PartyAwaitingBitChallenge<'a> {
 
         let offset_zz = vc.z * vc.z * offset_z;
         let mut exp_y = offset_y; // start at y^j
-        let mut exp_2 = Scalar::one(); // start at 2^0 = 1
+        let mut exp_2 = Scalar::ONE; // start at 2^0 = 1
         for i in 0..n {
             let a_L_i = Scalar::from((self.v >> i) & 1);
-            let a_R_i = a_L_i - Scalar::one();
+            let a_R_i = a_L_i - Scalar::ONE;
 
             l_poly.0[i] = a_L_i - vc.z;
             l_poly.1[i] = self.s_L[i];
@@ -279,7 +280,7 @@ impl PartyAwaitingPolyChallenge {
     pub fn apply_challenge(self, pc: &PolyChallenge) -> Result<ProofShare, MPCError> {
         // Prevent a malicious dealer from annihilating the blinding
         // factors by supplying a zero challenge.
-        if pc.x == Scalar::zero() {
+        if pc.x == Scalar::ZERO {
             return Err(MPCError::MaliciousDealer);
         }
 

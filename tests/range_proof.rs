@@ -10,6 +10,7 @@ use merlin::Transcript;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 
 use hex;
+use serde_json::json;
 
 // Tests that proofs generated with v1.0.0 continue to verify in later versions.
 #[test]
@@ -139,4 +140,15 @@ fn generate_test_vectors() {
     }
 
     panic!();
+}
+
+#[test]
+fn test_serde() {
+    let proof_hex = b"46b6ea8b6a9710c41c2622d4b353dbcf5f89afe8ed66c469f192bec19dc71d23c0442827f97fc9085a89caa87d294b0a21e7b8957732ec4951f6bf7d3aa2c66e7af3b7b956c7dcb3bed1223575a217a30642b603b6bf1d4138ed95e3458c524510b42c8d82958f40b447a84242b1ba1eeea54013f80bad643048eeb0b17c292a057cb6ae1c42338837c05eaa6336a17d60fa141204e015a1df15b28c1318c709d7eb35569cde89c0bf37eace54880a151498b38da54c6d739564f46f01b73601e518355ea06c9ef58a45fcb3baadbd1ac54e0838c471a6b91845f123d569fa0c46ef94471b7b826230e8576146beec08ac3e6683998815c576581f4c0e493433480f95f6495210636eaa2e32b577e1c363e35e522db85b18a56d57eb626f9e2b50578e0d7ee7b74b328e158b366bb9d117db725820a2fec3b1508212d75823345a801c0b602bfa05919d7e3bb8e71944587072badc363f334b08ba90d13e077ad24b82bacd51fc668d2b880daabd3b87e6bdc9584af66523026a30aadfc359283891bb65cca502f47421ffeee1fb5a5237bfa965b66a8b8ca5d6954f4f8222244c6a5340dc81e8d781d092cae2a763f185dd0b89965b1dd2506807b5d3e5a305fd9a68e60b91389dcffae6f85538713aa7ed272b8174e2f0b9730ebb6c464d06";
+    let proof = RangeProof::from_bytes(&hex::decode(&proof_hex).unwrap()).unwrap();
+
+    let serialized = json!(proof);
+    let deserialized: RangeProof = serde_json::from_value(serialized).unwrap();
+
+    assert_eq!(proof.to_bytes(), deserialized.to_bytes());
 }

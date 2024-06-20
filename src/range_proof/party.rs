@@ -13,7 +13,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use clear_on_drop::clear::Clear;
+use zeroize::ZeroizeOnDrop;
 use core::iter;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
@@ -61,8 +61,11 @@ impl Party {
 }
 
 /// A party waiting for the dealer to assign their position in the aggregation.
+#[derive(ZeroizeOnDrop)]
 pub struct PartyAwaitingPosition<'a> {
+    #[zeroize(skip)]
     bp_gens: &'a BulletproofGens,
+    #[zeroize(skip)]
     pc_gens: &'a PedersenGens,
     n: usize,
     v: u64,
@@ -106,7 +109,7 @@ impl<'a> PartyAwaitingPosition<'a> {
             // If v_i = 1, we add a_L[i] * G[i] + a_R[i] * H[i] =   G[i]
             let v_i = Choice::from(((self.v >> i) & 1) as u8);
             let mut point = -H_i;
-            let point = RistrettoPoint::conditional_select(&point, G_i, v_i);
+            point = RistrettoPoint::conditional_select(&point, G_i, v_i);
             A += point;
             i += 1;
         }
@@ -145,21 +148,15 @@ impl<'a> PartyAwaitingPosition<'a> {
     }
 }
 
-/// Overwrite secrets with null bytes when they go out of scope.
-impl<'a> Drop for PartyAwaitingPosition<'a> {
-    fn drop(&mut self) {
-        self.v.clear();
-        self.v_blinding.clear();
-    }
-}
-
 /// A party which has committed to the bits of its value
 /// and is waiting for the aggregated value challenge from the dealer.
+#[derive(ZeroizeOnDrop)]
 pub struct PartyAwaitingBitChallenge<'a> {
     n: usize, // bitsize of the range
     v: u64,
     v_blinding: Scalar,
     j: usize,
+    #[zeroize(skip)]
     pc_gens: &'a PedersenGens,
     a_blinding: Scalar,
     s_blinding: Scalar,
@@ -238,30 +235,9 @@ impl<'a> PartyAwaitingBitChallenge<'a> {
     }
 }
 
-/// Overwrite secrets with null bytes when they go out of scope.
-impl<'a> Drop for PartyAwaitingBitChallenge<'a> {
-    fn drop(&mut self) {
-        self.v.clear();
-        self.v_blinding.clear();
-        self.a_blinding.clear();
-        self.s_blinding.clear();
-
-        // Important: due to how ClearOnDrop auto-implements InitializableFromZeroed
-        // for T: Default, calling .clear() on Vec compiles, but does not
-        // clear the content. Instead, it only clears the Vec's header.
-        // Clearing the underlying buffer item-by-item will do the job, but will
-        // keep the header as-is, which is fine since the header does not contain secrets.
-        for e in self.s_L.iter_mut() {
-            e.clear();
-        }
-        for e in self.s_R.iter_mut() {
-            e.clear();
-        }
-    }
-}
-
 /// A party which has committed to their polynomial coefficents
 /// and is waiting for the polynomial challenge from the dealer.
+#[derive(ZeroizeOnDrop)]
 pub struct PartyAwaitingPolyChallenge {
     offset_zz: Scalar,
     l_poly: util::VecPoly1,
@@ -303,19 +279,5 @@ impl PartyAwaitingPolyChallenge {
             l_vec,
             r_vec,
         })
-    }
-}
-
-/// Overwrite secrets with null bytes when they go out of scope.
-impl Drop for PartyAwaitingPolyChallenge {
-    fn drop(&mut self) {
-        self.v_blinding.clear();
-        self.a_blinding.clear();
-        self.s_blinding.clear();
-        self.t_1_blinding.clear();
-        self.t_2_blinding.clear();
-
-        // Note: polynomials r_poly, l_poly and t_poly
-        // are cleared within their own Drop impls.
     }
 }

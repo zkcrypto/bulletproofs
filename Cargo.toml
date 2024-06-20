@@ -37,6 +37,7 @@ criterion = "0.3"
 bincode = "1"
 rand_chacha = "0.3"
 curve25519-dalek = { version = "4.1.1", features = ["digest", "group", "legacy_compatibility", "rand_core", "serde"] }
+serde_json = "1"
 
 [features]
 default = ["std"]

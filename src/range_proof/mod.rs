@@ -22,7 +22,7 @@ use crate::transcript::TranscriptProtocol;
 use crate::util;
 
 use rand_core::{CryptoRng, RngCore};
-use serde::de::{Visitor, SeqAccess, Error};
+use serde::de::{Error, SeqAccess, Visitor};
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 
 // Modules for MPC protocol
@@ -642,7 +642,15 @@ mod tests {
     /// 2. Serialize to wire format;
     /// 3. Deserialize from wire format;
     /// 4. Verify the proof.
-    fn singleparty_create_and_verify_helper(n: usize, m: usize) {
+    fn singleparty_create_and_verify_helper<T, S, D>(
+        n: usize,
+        m: usize,
+        serialize: S,
+        deserialize: D,
+    ) where
+        S: Fn(&RangeProof) -> T,
+        D: Fn(&T) -> RangeProof,
+    {
         // Split the test into two scopes, so that it's explicit what
         // data is shared between the prover and the verifier.
 
@@ -656,7 +664,7 @@ mod tests {
         let bp_gens = BulletproofGens::new(max_bitsize, max_parties);
 
         // Prover's scope
-        let (proof_bytes, value_commitments) = {
+        let (serialized_proof, value_commitments) = {
             use self::rand::Rng;
             let mut rng = rand::thread_rng();
 
@@ -678,16 +686,13 @@ mod tests {
             .unwrap();
 
             // 2. Return serialized proof and value commitments
-            (
-                serde_json::to_string_pretty(&proof).unwrap(),
-                value_commitments,
-            )
+            (serialize(&proof), value_commitments)
         };
 
         // Verifier's scope
         {
             // 3. Deserialize
-            let proof: RangeProof = serde_json::from_str(&proof_bytes).unwrap();
+            let proof: RangeProof = deserialize(&serialized_proof);
 
             // 4. Verify with the same customization label as above
             let mut transcript = Transcript::new(b"AggregatedRangeProofTest");
@@ -698,44 +703,68 @@ mod tests {
         }
     }
 
+    fn serialize_json(proof: &RangeProof) -> String {
+        serde_json::to_string_pretty(proof).unwrap()
+    }
+
+    fn deserialize_json(serialized_json: &String) -> RangeProof {
+        serde_json::from_str(serialized_json).unwrap()
+    }
+
+    fn serialize_bin(proof: &RangeProof) -> Vec<u8> {
+        bincode::serialize(&proof).unwrap()
+    }
+
+    fn deserialize_bin(serialized_bytes: &Vec<u8>) -> RangeProof {
+        bincode::deserialize(&serialized_bytes).unwrap()
+    }
+
     #[test]
     fn create_and_verify_n_32_m_1() {
-        singleparty_create_and_verify_helper(32, 1);
+        singleparty_create_and_verify_helper(32, 1, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(32, 1, serialize_bin, deserialize_bin);
     }
 
     #[test]
     fn create_and_verify_n_32_m_2() {
-        singleparty_create_and_verify_helper(32, 2);
+        singleparty_create_and_verify_helper(32, 2, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(32, 2, serialize_bin, deserialize_bin);
     }
 
     #[test]
     fn create_and_verify_n_32_m_4() {
-        singleparty_create_and_verify_helper(32, 4);
+        singleparty_create_and_verify_helper(32, 4, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(32, 4, serialize_bin, deserialize_bin);
     }
 
     #[test]
     fn create_and_verify_n_32_m_8() {
-        singleparty_create_and_verify_helper(32, 8);
+        singleparty_create_and_verify_helper(32, 8, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(32, 8, serialize_bin, deserialize_bin);
     }
 
     #[test]
     fn create_and_verify_n_64_m_1() {
-        singleparty_create_and_verify_helper(64, 1);
+        singleparty_create_and_verify_helper(64, 1, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(64, 1, serialize_bin, deserialize_bin);
     }
 
     #[test]
     fn create_and_verify_n_64_m_2() {
-        singleparty_create_and_verify_helper(64, 2);
+        singleparty_create_and_verify_helper(64, 2, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(64, 2, serialize_bin, deserialize_bin);
     }
 
     #[test]
     fn create_and_verify_n_64_m_4() {
-        singleparty_create_and_verify_helper(64, 4);
+        singleparty_create_and_verify_helper(64, 4, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(64, 4, serialize_bin, deserialize_bin);
     }
 
     #[test]
     fn create_and_verify_n_64_m_8() {
-        singleparty_create_and_verify_helper(64, 8);
+        singleparty_create_and_verify_helper(64, 8, serialize_json, deserialize_json);
+        singleparty_create_and_verify_helper(64, 8, serialize_bin, deserialize_bin);
     }
 
     #[test]

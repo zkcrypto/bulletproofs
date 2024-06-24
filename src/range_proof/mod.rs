@@ -570,7 +570,14 @@ impl<'de> Deserialize<'de> for RangeProof {
                 while let Some(elem) = seq.next_element()? {
                     vec.push(elem);
                 }
+                // Using Error::custom requires T: Display, which our error
+                // type only implements when it implements std::error::Error.
+                #[cfg(feature = "std")]
                 return RangeProof::from_bytes(&*vec).map_err(serde::de::Error::custom);
+                // In no-std contexts, drop the error message.
+                #[cfg(not(feature = "std"))]
+                return RangeProof::from_bytes(&*vec)
+                    .map_err(|_| serde::de::Error::custom("deserialization error"));
             }
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<RangeProof, E>

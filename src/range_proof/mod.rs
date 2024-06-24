@@ -22,7 +22,7 @@ use crate::transcript::TranscriptProtocol;
 use crate::util;
 
 use rand_core::{CryptoRng, RngCore};
-use serde::de::Visitor;
+use serde::de::{Visitor, SeqAccess, Error};
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 
 // Modules for MPC protocol
@@ -559,7 +559,18 @@ impl<'de> Deserialize<'de> for RangeProof {
             type Value = RangeProof;
 
             fn expecting(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                formatter.write_str("a valid RangeProof")
+                formatter.write_str("a byte sequence (raw or UTF-8) representation of RangeProof")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut vec = Vec::<u8>::new();
+                while let Some(elem) = seq.next_element()? {
+                    vec.push(elem);
+                }
+                return RangeProof::from_bytes(&*vec).map_err(serde::de::Error::custom);
             }
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<RangeProof, E>

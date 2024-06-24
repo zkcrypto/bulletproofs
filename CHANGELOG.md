@@ -2,6 +2,10 @@
 
 Entries are listed in reverse chronological order.
 
+## 5.0.1
+
+* Support for `serde_json`. Any library trying to deserialize RangeProof from json would run into an error, which is now fixed.
+
 ## 5.0.0
 
 * Change `curve25519-dalek-ng` dependency to `curve25519-dalek`. A major version bump is required because one cannot import `curve25519-dalek` and `bulletproofs` without conflicts.

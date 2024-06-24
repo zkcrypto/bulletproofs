@@ -667,13 +667,16 @@ mod tests {
             .unwrap();
 
             // 2. Return serialized proof and value commitments
-            (bincode::serialize(&proof).unwrap(), value_commitments)
+            (
+                serde_json::to_string_pretty(&proof).unwrap(),
+                value_commitments,
+            )
         };
 
         // Verifier's scope
         {
             // 3. Deserialize
-            let proof: RangeProof = bincode::deserialize(&proof_bytes).unwrap();
+            let proof: RangeProof = serde_json::from_str(&proof_bytes).unwrap();
 
             // 4. Verify with the same customization label as above
             let mut transcript = Transcript::new(b"AggregatedRangeProofTest");

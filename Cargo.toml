@@ -17,34 +17,34 @@ description = "A pure-Rust implementation of Bulletproofs using Ristretto"
 edition = "2018"
 
 [dependencies]
-curve25519-dalek = { version = "4.1.1", features = ["digest", "group", "rand_core", "serde"] }
+curve25519-dalek = { version = "5.0.0-pre.0", features = ["digest", "group", "rand_core", "serde"] }
 group = { version = "0.13", default-features = false }
-subtle = { version = "2.5", default-features = false }
-sha3 = { version = "0.10", default-features = false }
-digest = { version = "0.10", default-features = false }
-rand_core = { version = "0.6", default-features = false, features = ["alloc"] }
-rand = { version = "0.8", default-features = false, optional = true }
+subtle = { version = "2.6", default-features = false }
+sha3 = { version = "0.11.0-rc.0", default-features = false }
+digest = { version = "0.11.0-rc.0", default-features = false }
+rand_core = { version = "0.9", default-features = false }
+rand = { version = "0.9", default-features = false, optional = true }
 byteorder = { version = "1", default-features = false }
 serde = { version = "1", default-features = false, features = ["alloc"] }
 serde_derive = { version = "1", default-features = false }
-thiserror = { version = "1", optional = true }
+thiserror = { version = "2", optional = true }
 merlin = { version = "3", default-features = false }
-clear_on_drop = { version = "0.2", default-features = false }
+clear_on_drop = { version = "0.2", default-features = false, features = ["no_cc"], optional = true }
 
 [dev-dependencies]
-hex = "0.3"
-criterion = "0.3"
-bincode = "1"
-rand_chacha = "0.3"
-curve25519-dalek = { version = "4.1.1", features = ["digest", "group", "legacy_compatibility", "rand_core", "serde"] }
+hex = "0.4"
+criterion = "0.6"
+bincode = {version = "2", features = ["serde"] }
+rand_chacha = "0.9"
+curve25519-dalek = { version = "5.0.0-pre.0", features = ["digest", "group", "legacy_compatibility", "rand_core", "serde"] }
 
 [features]
 default = ["std"]
 yoloproofs = []
-std = ["rand", "rand/std", "rand/std_rng", "thiserror"]
-nightly = ["subtle/nightly", "clear_on_drop/nightly"]
+std = ["rand", "rand/std", "rand/std_rng", "rand/thread_rng", "thiserror", "dep:clear_on_drop"]
+nightly = ["curve25519-dalek/alloc", "subtle/nightly", "clear_on_drop/nightly"]
 docs = ["nightly"]
-
+cloneable = []
 
 [[test]]
 name = "range_proof"

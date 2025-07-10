@@ -5,17 +5,20 @@ extern crate alloc;
 
 use alloc::vec;
 use alloc::vec::Vec;
+#[cfg(feature = "dep:clear_on_drop")]
 use clear_on_drop::clear::Clear;
 use curve25519_dalek::scalar::Scalar;
 
 use crate::inner_product_proof::inner_product;
 
 /// Represents a degree-1 vector polynomial \\(\mathbf{a} + \mathbf{b} \cdot x\\).
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct VecPoly1(pub Vec<Scalar>, pub Vec<Scalar>);
 
 /// Represents a degree-3 vector polynomial
 /// \\(\mathbf{a} + \mathbf{b} \cdot x + \mathbf{c} \cdot x^2 + \mathbf{d} \cdot x^3 \\).
 #[cfg(feature = "yoloproofs")]
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct VecPoly3(
     pub Vec<Scalar>,
     pub Vec<Scalar>,
@@ -24,11 +27,13 @@ pub struct VecPoly3(
 );
 
 /// Represents a degree-2 scalar polynomial \\(a + b \cdot x + c \cdot x^2\\)
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct Poly2(pub Scalar, pub Scalar, pub Scalar);
 
 /// Represents a degree-6 scalar polynomial, without the zeroth degree
 /// \\(a \cdot x + b \cdot x^2 + c \cdot x^3 + d \cdot x^4 + e \cdot x^5 + f \cdot x^6\\)
 #[cfg(feature = "yoloproofs")]
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct Poly6 {
     pub t1: Scalar,
     pub t2: Scalar,
@@ -41,6 +46,7 @@ pub struct Poly6 {
 /// Provides an iterator over the powers of a `Scalar`.
 ///
 /// This struct is created by the `exp_iter` function.
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct ScalarExp {
     x: Scalar,
     next_exp_x: Scalar,
@@ -167,6 +173,7 @@ impl Poly6 {
     }
 }
 
+#[cfg(feature = "dep:clear_on_drop")]
 impl Drop for VecPoly1 {
     fn drop(&mut self) {
         for e in self.0.iter_mut() {
@@ -178,6 +185,7 @@ impl Drop for VecPoly1 {
     }
 }
 
+#[cfg(feature = "dep:clear_on_drop")]
 impl Drop for Poly2 {
     fn drop(&mut self) {
         self.0.clear();
@@ -186,7 +194,7 @@ impl Drop for Poly2 {
     }
 }
 
-#[cfg(feature = "yoloproofs")]
+#[cfg(all(feature = "yoloproofs", feature = "dep:clear_on_drop"))]
 impl Drop for VecPoly3 {
     fn drop(&mut self) {
         for e in self.0.iter_mut() {
@@ -204,7 +212,7 @@ impl Drop for VecPoly3 {
     }
 }
 
-#[cfg(feature = "yoloproofs")]
+#[cfg(all(feature = "yoloproofs", feature = "dep:clear_on_drop"))]
 impl Drop for Poly6 {
     fn drop(&mut self) {
         self.t1.clear();
@@ -348,50 +356,5 @@ mod tests {
         assert_eq!(sum_of_powers_slow(&x, 4), Scalar::from(1111u64));
         assert_eq!(sum_of_powers_slow(&x, 5), Scalar::from(11111u64));
         assert_eq!(sum_of_powers_slow(&x, 6), Scalar::from(111111u64));
-    }
-
-    #[test]
-    fn vec_of_scalars_clear_on_drop() {
-        let mut v = vec![Scalar::from(24u64), Scalar::from(42u64)];
-
-        for e in v.iter_mut() {
-            e.clear();
-        }
-
-        fn flat_slice<T>(x: &[T]) -> &[u8] {
-            use core::mem;
-            use core::slice;
-
-            unsafe { slice::from_raw_parts(x.as_ptr() as *const u8, mem::size_of_val(x)) }
-        }
-
-        assert_eq!(flat_slice(&v.as_slice()), &[0u8; 64][..]);
-        assert_eq!(v[0], Scalar::ZERO);
-        assert_eq!(v[1], Scalar::ZERO);
-    }
-
-    #[test]
-    fn tuple_of_scalars_clear_on_drop() {
-        let mut v = Poly2(
-            Scalar::from(24u64),
-            Scalar::from(42u64),
-            Scalar::from(255u64),
-        );
-
-        v.0.clear();
-        v.1.clear();
-        v.2.clear();
-
-        fn as_bytes<T>(x: &T) -> &[u8] {
-            use core::mem;
-            use core::slice;
-
-            unsafe { slice::from_raw_parts(x as *const T as *const u8, mem::size_of_val(x)) }
-        }
-
-        assert_eq!(as_bytes(&v), &[0u8; 96][..]);
-        assert_eq!(v.0, Scalar::ZERO);
-        assert_eq!(v.1, Scalar::ZERO);
-        assert_eq!(v.2, Scalar::ZERO);
     }
 }

@@ -136,9 +136,9 @@ pub struct BulletproofGens {
     /// Number of values or parties
     pub party_capacity: usize,
     /// Precomputed \\(\mathbf G\\) generators for each party.
-    G_vec: Vec<Vec<RistrettoPoint>>,
+    pub G_vec: Vec<Vec<RistrettoPoint>>,
     /// Precomputed \\(\mathbf H\\) generators for each party.
-    H_vec: Vec<Vec<RistrettoPoint>>,
+    pub H_vec: Vec<Vec<RistrettoPoint>>,
 }
 
 impl BulletproofGens {
@@ -269,9 +269,9 @@ impl<'a> Iterator for AggregatedGensIter<'a> {
 #[derive(Copy, Clone)]
 pub struct BulletproofGensShare<'a> {
     /// The parent object that this is a view into
-    gens: &'a BulletproofGens,
+    pub gens: &'a BulletproofGens,
     /// Which share we are
-    share: usize,
+    pub share: usize,
 }
 
 impl<'a> BulletproofGensShare<'a> {
@@ -281,7 +281,7 @@ impl<'a> BulletproofGensShare<'a> {
     }
 
     /// Return an iterator over this party's H generators with given size `n`.
-    pub(crate) fn H(&self, n: usize) -> impl Iterator<Item = &'a RistrettoPoint> {
+    pub fn H(&self, n: usize) -> impl Iterator<Item = &'a RistrettoPoint> {
         self.gens.H_vec[self.share].iter().take(n)
     }
 }

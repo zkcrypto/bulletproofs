@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+#[cfg(feature = "dep:clear_on_drop")]
 use clear_on_drop::clear::Clear;
 use core::borrow::BorrowMut;
 use core::mem;
@@ -72,6 +73,7 @@ pub struct RandomizingProver<'g, T: BorrowMut<Transcript>> {
 }
 
 /// Overwrite secrets with null bytes when they go out of scope.
+#[cfg(feature = "dep:clear_on_drop")]
 impl Drop for Secrets {
     fn drop(&mut self) {
         self.v.clear();

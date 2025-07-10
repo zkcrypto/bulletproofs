@@ -31,12 +31,12 @@ fn create_aggregated_rangeproof_helper(n: usize, c: &mut Criterion) {
 
             b.iter(|| {
                 // Each proof creation requires a clean transcript.
-                let mut transcript = Transcript::new(b"AggregateRangeProofBenchmark");
+                let transcript = Transcript::new(b"AggregateRangeProofBenchmark");
 
                 RangeProof::prove_multiple(
-                    &bp_gens,
-                    &pc_gens,
-                    &mut transcript,
+                    bp_gens,
+                    pc_gens,
+                    transcript,
                     &values,
                     &blindings,
                     n,

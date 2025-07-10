@@ -15,7 +15,7 @@ use merlin::Transcript;
 use crate::errors::ProofError;
 use crate::transcript::TranscriptProtocol;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InnerProductProof {
     pub(crate) L_vec: Vec<CompressedRistretto>,
     pub(crate) R_vec: Vec<CompressedRistretto>,

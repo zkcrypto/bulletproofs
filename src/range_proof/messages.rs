@@ -10,47 +10,47 @@ use alloc::vec::Vec;
 use core::iter;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::traits::VartimeMultiscalarMul;
+use curve25519_dalek::traits::{IsIdentity, VartimeMultiscalarMul};
 
 use crate::generators::{BulletproofGens, PedersenGens};
 
 /// A commitment to the bits of a party's value.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub struct BitCommitment {
-    pub(super) V_j: CompressedRistretto,
-    pub(super) A_j: RistrettoPoint,
-    pub(super) S_j: RistrettoPoint,
+    pub V_j: CompressedRistretto,
+    pub A_j: RistrettoPoint,
+    pub S_j: RistrettoPoint,
 }
 
 /// Challenge values derived from all parties' [`BitCommitment`]s.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub struct BitChallenge {
-    pub(super) y: Scalar,
-    pub(super) z: Scalar,
+    pub y: Scalar,
+    pub z: Scalar,
 }
 
 /// A commitment to a party's polynomial coefficents.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub struct PolyCommitment {
-    pub(super) T_1_j: RistrettoPoint,
-    pub(super) T_2_j: RistrettoPoint,
+    pub T_1_j: RistrettoPoint,
+    pub T_2_j: RistrettoPoint,
 }
 
 /// Challenge values derived from all parties' [`PolyCommitment`]s.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub struct PolyChallenge {
     pub(super) x: Scalar,
 }
 
 /// A party's proof share, ready for aggregation into the final
 /// [`RangeProof`](::RangeProof).
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ProofShare {
-    pub(super) t_x: Scalar,
-    pub(super) t_x_blinding: Scalar,
-    pub(super) e_blinding: Scalar,
-    pub(super) l_vec: Vec<Scalar>,
-    pub(super) r_vec: Vec<Scalar>,
+    pub t_x: Scalar,
+    pub t_x_blinding: Scalar,
+    pub e_blinding: Scalar,
+    pub l_vec: Vec<Scalar>,
+    pub r_vec: Vec<Scalar>,
 }
 
 impl ProofShare {

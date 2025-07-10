@@ -30,17 +30,20 @@ use rand::thread_rng;
 use super::messages::*;
 
 /// Used to construct a dealer for the aggregated rangeproof MPC protocol.
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct Dealer {}
 
 impl Dealer {
     /// Creates a new dealer coordinating `m` parties proving `n`-bit ranges.
-    pub fn new<'a, 'b>(
-        bp_gens: &'b BulletproofGens,
-        pc_gens: &'b PedersenGens,
-        transcript: &'a mut Transcript,
+    pub fn new(
+        bp_gens: BulletproofGens,
+        pc_gens: PedersenGens,
+        transcript: Transcript,
         n: usize,
         m: usize,
-    ) -> Result<DealerAwaitingBitCommitments<'a, 'b>, MPCError> {
+    ) -> Result<DealerAwaitingBitCommitments, MPCError> {
+        let mut transcript = transcript;
+
         if !(n == 8 || n == 16 || n == 32 || n == 64) {
             return Err(MPCError::InvalidBitsize);
         }
@@ -82,10 +85,11 @@ impl Dealer {
 }
 
 /// A dealer waiting for the parties to send their [`BitCommitment`]s.
-pub struct DealerAwaitingBitCommitments<'a, 'b> {
-    bp_gens: &'b BulletproofGens,
-    pc_gens: &'b PedersenGens,
-    transcript: &'a mut Transcript,
+#[cfg_attr(feature = "cloneable", derive(Clone))]
+pub struct DealerAwaitingBitCommitments {
+    bp_gens: BulletproofGens,
+    pc_gens: PedersenGens,
+    transcript: Transcript,
     /// The dealer keeps a copy of the initial transcript state, so
     /// that it can attempt to verify the aggregated proof at the end.
     initial_transcript: Transcript,
@@ -93,37 +97,39 @@ pub struct DealerAwaitingBitCommitments<'a, 'b> {
     m: usize,
 }
 
-impl<'a, 'b> DealerAwaitingBitCommitments<'a, 'b> {
+impl DealerAwaitingBitCommitments {
     /// Receive each party's [`BitCommitment`]s and compute the [`BitChallenge`].
     pub fn receive_bit_commitments(
         self,
         bit_commitments: Vec<BitCommitment>,
-    ) -> Result<(DealerAwaitingPolyCommitments<'a, 'b>, BitChallenge), MPCError> {
+    ) -> Result<(DealerAwaitingPolyCommitments, BitChallenge), MPCError> {
+        let mut transcript = self.transcript;
+
         if self.m != bit_commitments.len() {
             return Err(MPCError::WrongNumBitCommitments);
         }
 
         // Commit each V_j individually
         for vc in bit_commitments.iter() {
-            self.transcript.append_point(b"V", &vc.V_j);
+            transcript.append_point(b"V", &vc.V_j);
         }
 
         // Commit aggregated A_j, S_j
         let A: RistrettoPoint = bit_commitments.iter().map(|vc| vc.A_j).sum();
-        self.transcript.append_point(b"A", &A.compress());
+        transcript.append_point(b"A", &A.compress());
 
         let S: RistrettoPoint = bit_commitments.iter().map(|vc| vc.S_j).sum();
-        self.transcript.append_point(b"S", &S.compress());
+        transcript.append_point(b"S", &S.compress());
 
-        let y = self.transcript.challenge_scalar(b"y");
-        let z = self.transcript.challenge_scalar(b"z");
+        let y = transcript.challenge_scalar(b"y");
+        let z = transcript.challenge_scalar(b"z");
         let bit_challenge = BitChallenge { y, z };
 
         Ok((
             DealerAwaitingPolyCommitments {
                 n: self.n,
                 m: self.m,
-                transcript: self.transcript,
+                transcript,
                 initial_transcript: self.initial_transcript,
                 bp_gens: self.bp_gens,
                 pc_gens: self.pc_gens,
@@ -139,13 +145,14 @@ impl<'a, 'b> DealerAwaitingBitCommitments<'a, 'b> {
 
 /// A dealer which has sent the [`BitChallenge`] to the parties and
 /// is waiting for their [`PolyCommitment`]s.
-pub struct DealerAwaitingPolyCommitments<'a, 'b> {
+#[cfg_attr(feature = "cloneable", derive(Clone))]
+pub struct DealerAwaitingPolyCommitments {
     n: usize,
     m: usize,
-    transcript: &'a mut Transcript,
+    transcript: Transcript,
     initial_transcript: Transcript,
-    bp_gens: &'b BulletproofGens,
-    pc_gens: &'b PedersenGens,
+    bp_gens: BulletproofGens,
+    pc_gens: PedersenGens,
     bit_challenge: BitChallenge,
     bit_commitments: Vec<BitCommitment>,
     /// Aggregated commitment to the parties' bits
@@ -154,13 +161,15 @@ pub struct DealerAwaitingPolyCommitments<'a, 'b> {
     S: RistrettoPoint,
 }
 
-impl<'a, 'b> DealerAwaitingPolyCommitments<'a, 'b> {
+impl DealerAwaitingPolyCommitments {
     /// Receive [`PolyCommitment`]s from the parties and compute the
     /// [`PolyChallenge`].
     pub fn receive_poly_commitments(
         self,
         poly_commitments: Vec<PolyCommitment>,
-    ) -> Result<(DealerAwaitingProofShares<'a, 'b>, PolyChallenge), MPCError> {
+    ) -> Result<(DealerAwaitingProofShares, PolyChallenge), MPCError> {
+        let mut transcript = self.transcript;
+
         if self.m != poly_commitments.len() {
             return Err(MPCError::WrongNumPolyCommitments);
         }
@@ -169,17 +178,17 @@ impl<'a, 'b> DealerAwaitingPolyCommitments<'a, 'b> {
         let T_1: RistrettoPoint = poly_commitments.iter().map(|pc| pc.T_1_j).sum();
         let T_2: RistrettoPoint = poly_commitments.iter().map(|pc| pc.T_2_j).sum();
 
-        self.transcript.append_point(b"T_1", &T_1.compress());
-        self.transcript.append_point(b"T_2", &T_2.compress());
+        transcript.append_point(b"T_1", &T_1.compress());
+        transcript.append_point(b"T_2", &T_2.compress());
 
-        let x = self.transcript.challenge_scalar(b"x");
+        let x = transcript.challenge_scalar(b"x");
         let poly_challenge = PolyChallenge { x };
 
         Ok((
             DealerAwaitingProofShares {
                 n: self.n,
                 m: self.m,
-                transcript: self.transcript,
+                transcript,
                 initial_transcript: self.initial_transcript,
                 bp_gens: self.bp_gens,
                 pc_gens: self.pc_gens,
@@ -200,15 +209,16 @@ impl<'a, 'b> DealerAwaitingPolyCommitments<'a, 'b> {
 /// A dealer which has sent the [`PolyChallenge`] to the parties and
 /// is waiting to aggregate their [`ProofShare`]s into a
 /// [`RangeProof`].
-pub struct DealerAwaitingProofShares<'a, 'b> {
+#[cfg_attr(feature = "cloneable", derive(Clone))]
+pub struct DealerAwaitingProofShares {
     n: usize,
     m: usize,
-    transcript: &'a mut Transcript,
+    transcript: Transcript,
     initial_transcript: Transcript,
-    bp_gens: &'b BulletproofGens,
-    pc_gens: &'b PedersenGens,
+    bp_gens: BulletproofGens,
+    pc_gens: PedersenGens,
     bit_challenge: BitChallenge,
-    bit_commitments: Vec<BitCommitment>,
+    pub bit_commitments: Vec<BitCommitment>,
     poly_challenge: PolyChallenge,
     poly_commitments: Vec<PolyCommitment>,
     A: RistrettoPoint,
@@ -217,13 +227,15 @@ pub struct DealerAwaitingProofShares<'a, 'b> {
     T_2: RistrettoPoint,
 }
 
-impl<'a, 'b> DealerAwaitingProofShares<'a, 'b> {
+impl DealerAwaitingProofShares {
     /// Assembles proof shares into an `RangeProof`.
     ///
     /// Used as a helper function by `receive_trusted_shares` (which
     /// just hands back the result) and `receive_shares` (which
     /// validates the proof shares.
     fn assemble_shares(&mut self, proof_shares: &[ProofShare]) -> Result<RangeProof, MPCError> {
+        let mut transcript = self.transcript.clone();
+
         if self.m != proof_shares.len() {
             return Err(MPCError::WrongNumProofShares);
         }
@@ -246,13 +258,13 @@ impl<'a, 'b> DealerAwaitingProofShares<'a, 'b> {
         let t_x_blinding: Scalar = proof_shares.iter().map(|ps| ps.t_x_blinding).sum();
         let e_blinding: Scalar = proof_shares.iter().map(|ps| ps.e_blinding).sum();
 
-        self.transcript.append_scalar(b"t_x", &t_x);
-        self.transcript
+        transcript.append_scalar(b"t_x", &t_x);
+        transcript
             .append_scalar(b"t_x_blinding", &t_x_blinding);
-        self.transcript.append_scalar(b"e_blinding", &e_blinding);
+        transcript.append_scalar(b"e_blinding", &e_blinding);
 
         // Get a challenge value to combine statements for the IPP
-        let w = self.transcript.challenge_scalar(b"w");
+        let w = transcript.challenge_scalar(b"w");
         let Q = w * self.pc_gens.B;
 
         let G_factors: Vec<Scalar> = iter::repeat(Scalar::ONE).take(self.n * self.m).collect();
@@ -270,7 +282,7 @@ impl<'a, 'b> DealerAwaitingProofShares<'a, 'b> {
             .collect();
 
         let ipp_proof = inner_product_proof::InnerProductProof::create(
-            self.transcript,
+            &mut transcript,
             &Q,
             &G_factors,
             &H_factors,
@@ -328,7 +340,7 @@ impl<'a, 'b> DealerAwaitingProofShares<'a, 'b> {
         // See comment in `Dealer::new` for why we use `initial_transcript`
         let transcript = &mut self.initial_transcript;
         if proof
-            .verify_multiple_with_rng(self.bp_gens, self.pc_gens, transcript, &Vs, self.n, rng)
+            .verify_multiple_with_rng(&self.bp_gens, &self.pc_gens, transcript, &Vs, self.n, rng)
             .is_ok()
         {
             Ok(proof)

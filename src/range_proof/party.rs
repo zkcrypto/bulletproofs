@@ -13,6 +13,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+#[cfg(feature = "dep:clear_on_drop")]
 use clear_on_drop::clear::Clear;
 use core::iter;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
@@ -29,17 +30,18 @@ use rand::thread_rng;
 use super::messages::*;
 
 /// Used to construct a party for the aggregated rangeproof MPC protocol.
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct Party {}
 
 impl Party {
     /// Constructs a `PartyAwaitingPosition` with the given rangeproof parameters.
-    pub fn new<'a>(
-        bp_gens: &'a BulletproofGens,
-        pc_gens: &'a PedersenGens,
+    pub fn new(
+        bp_gens: BulletproofGens,
+        pc_gens: PedersenGens,
         v: u64,
         v_blinding: Scalar,
         n: usize,
-    ) -> Result<PartyAwaitingPosition<'a>, MPCError> {
+    ) -> Result<PartyAwaitingPosition, MPCError> {
         if !(n == 8 || n == 16 || n == 32 || n == 64) {
             return Err(MPCError::InvalidBitsize);
         }
@@ -61,23 +63,24 @@ impl Party {
 }
 
 /// A party waiting for the dealer to assign their position in the aggregation.
-pub struct PartyAwaitingPosition<'a> {
-    bp_gens: &'a BulletproofGens,
-    pc_gens: &'a PedersenGens,
+#[cfg_attr(feature = "cloneable", derive(Clone))]
+pub struct PartyAwaitingPosition {
+    bp_gens: BulletproofGens,
+    pc_gens: PedersenGens,
     n: usize,
     v: u64,
     v_blinding: Scalar,
     V: CompressedRistretto,
 }
 
-impl<'a> PartyAwaitingPosition<'a> {
+impl PartyAwaitingPosition {
     /// Assigns a position in the aggregated proof to this party,
     /// allowing the party to commit to the bits of their value.
     #[cfg(feature = "std")]
     pub fn assign_position(
         self,
         j: usize,
-    ) -> Result<(PartyAwaitingBitChallenge<'a>, BitCommitment), MPCError> {
+    ) -> Result<(PartyAwaitingBitChallenge, BitCommitment), MPCError> {
         self.assign_position_with_rng(j, &mut thread_rng())
     }
 
@@ -87,7 +90,7 @@ impl<'a> PartyAwaitingPosition<'a> {
         self,
         j: usize,
         rng: &mut T,
-    ) -> Result<(PartyAwaitingBitChallenge<'a>, BitCommitment), MPCError> {
+    ) -> Result<(PartyAwaitingBitChallenge, BitCommitment), MPCError> {
         if self.bp_gens.party_capacity <= j {
             return Err(MPCError::InvalidGeneratorsLength);
         }
@@ -146,7 +149,8 @@ impl<'a> PartyAwaitingPosition<'a> {
 }
 
 /// Overwrite secrets with null bytes when they go out of scope.
-impl<'a> Drop for PartyAwaitingPosition<'a> {
+#[cfg(feature = "dep:clear_on_drop")]
+impl Drop for PartyAwaitingPosition {
     fn drop(&mut self) {
         self.v.clear();
         self.v_blinding.clear();
@@ -155,19 +159,20 @@ impl<'a> Drop for PartyAwaitingPosition<'a> {
 
 /// A party which has committed to the bits of its value
 /// and is waiting for the aggregated value challenge from the dealer.
-pub struct PartyAwaitingBitChallenge<'a> {
+#[cfg_attr(feature = "cloneable", derive(Clone))]
+pub struct PartyAwaitingBitChallenge {
     n: usize, // bitsize of the range
     v: u64,
     v_blinding: Scalar,
     j: usize,
-    pc_gens: &'a PedersenGens,
+    pc_gens: PedersenGens,
     a_blinding: Scalar,
     s_blinding: Scalar,
     s_L: Vec<Scalar>,
     s_R: Vec<Scalar>,
 }
 
-impl<'a> PartyAwaitingBitChallenge<'a> {
+impl PartyAwaitingBitChallenge {
     /// Receive a [`BitChallenge`] from the dealer and use it to
     /// compute commitments to the party's polynomial coefficients.
     #[cfg(feature = "std")]
@@ -239,7 +244,8 @@ impl<'a> PartyAwaitingBitChallenge<'a> {
 }
 
 /// Overwrite secrets with null bytes when they go out of scope.
-impl<'a> Drop for PartyAwaitingBitChallenge<'a> {
+#[cfg(feature = "dep:clear_on_drop")]
+impl Drop for PartyAwaitingBitChallenge {
     fn drop(&mut self) {
         self.v.clear();
         self.v_blinding.clear();
@@ -262,6 +268,7 @@ impl<'a> Drop for PartyAwaitingBitChallenge<'a> {
 
 /// A party which has committed to their polynomial coefficents
 /// and is waiting for the polynomial challenge from the dealer.
+#[cfg_attr(feature = "cloneable", derive(Clone))]
 pub struct PartyAwaitingPolyChallenge {
     offset_zz: Scalar,
     l_poly: util::VecPoly1,
@@ -307,6 +314,7 @@ impl PartyAwaitingPolyChallenge {
 }
 
 /// Overwrite secrets with null bytes when they go out of scope.
+#[cfg(feature = "dep:clear_on_drop")]
 impl Drop for PartyAwaitingPolyChallenge {
     fn drop(&mut self) {
         self.v_blinding.clear();
